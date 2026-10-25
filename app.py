@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 import config
 from utils.database import (
     init_db,
+    get_db_connection,
     save_analysis,
     get_analysis,
     create_interview_session,
@@ -42,6 +43,34 @@ except Exception as db_err:
 # Instantiate coordination and specialized interview agents
 coordinator_agent = CoordinatorAgent()
 live_interview_agent = InterviewAgent()
+
+
+@app.route("/api/health")
+@app.route("/health")
+def health_check():
+    """
+    Health check endpoint verifying application uptime and database connectivity.
+    """
+    try:
+        conn = get_db_connection()
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+        db_status = "connected"
+    except Exception as db_err:
+        logger.error(f"Healthcheck database error: {str(db_err)}")
+        db_status = f"unhealthy: {str(db_err)}"
+
+    status_code = 200 if db_status == "connected" else 503
+    return (
+        jsonify(
+            {
+                "status": "healthy" if status_code == 200 else "degraded",
+                "version": config.__version__,
+                "database": db_status,
+            }
+        ),
+        status_code,
+    )
 
 @app.route("/")
 def index() -> str:
