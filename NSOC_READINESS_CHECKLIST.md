@@ -1,202 +1,76 @@
-# NSOC Winter Edition - Project Readiness Checklist
+# NSoC Winter Edition: Project Kernel Readiness
 
-This document outlines the steps to prepare the AI Campus Placement Agent for NSOC Winter Edition submission.
+This checklist compares the repository with the Project Kernel responsibilities described on the official NSoC Winter Edition website. It is a preparation aid, not an official scoring rubric or guarantee of acceptance.
 
-## ✅ Completed Open Source Conversions
+## What NSoC publicly says about Project Kernel
 
-The project has been successfully converted into a professional open-source project with the following additions:
+The official site describes Project Kernel as a path to submit an open-source project to the program. It says project maintainers should:
 
-### Core Documentation
-- ✅ **LICENSE** - MIT License for open source distribution
-- ✅ **README.md** - Enhanced with badges, deployment instructions, and community info
-- ✅ **CONTRIBUTING.md** - Comprehensive contribution guidelines
-- ✅ **CODE_OF_CONDUCT.md** - Community standards and enforcement policy
-- ✅ **SECURITY.md** - Security policy and vulnerability reporting
-- ✅ **SUPPORT.md** - Support documentation and common issues
-- ✅ **CHANGELOG.md** - Version history and release notes
-- ✅ **AUTHORS.md** - Project authors information
-- ✅ **CONTRIBUTORS.md** - Contributors list
+- Curate issues for contributors with different experience levels.
+- Review pull requests and mentor contributors through the codebase.
+- Bring a real project where contributions can result in meaningful work.
 
-### Package Configuration
-- ✅ **pyproject.toml** - Modern Python package configuration
-- ✅ **MANIFEST.in** - Package distribution manifest
-- ✅ **.gitattributes** - Line ending normalization
-- ✅ **.env.example** - Environment variable template
-- ✅ **.dockerignore** - Docker build optimization
+See the [official NSoC site](https://www.nsoc.in/) and its [project directory](https://www.nsoc.in/projects). The public pages reviewed for this checklist do not publish a weighted selection rubric, a complete project-application form, or a guaranteed acceptance process. Confirm the current submission route and deadline with NSoC before assuming that registration alone submits a project.
 
-### GitHub Configuration
-- ✅ **.github/ISSUE_TEMPLATE/** - Bug report and feature request templates
-- ✅ **.github/PULL_REQUEST_TEMPLATE.md** - PR template
-- ✅ **.github/CODEOWNERS** - Code ownership rules
-- ✅ **.github/FUNDING.yml** - Sponsorship configuration
-- ✅ **.github/labeler.yml** - Automatic PR labeling
+## Current public timing
 
-### CI/CD & Automation
-- ✅ **.github/workflows/ci.yml** - CI pipeline with linting, validation, and security scanning
-- ✅ **.github/workflows/docker.yml** - Docker build automation
-- ✅ **.github/workflows/labeler.yml** - Automatic PR labeling workflow
+The NSoC site currently describes a 45-day Winter Edition. Its timeline lists registration through November 30, 2026, contributions beginning October 19, 2026, the program ending December 2, 2026, and winners announced December 10, 2026. These dates may change; check the [official site](https://www.nsoc.in/) and ask the organizers whether Project Kernel applications are still being accepted.
 
-### Containerization
-- ✅ **Dockerfile** - Production-ready Docker image
-- ✅ **docker-compose.yml** - Easy local deployment with Docker Compose
+The public [registration page](https://www.nsoc.in/register) currently offers account creation. It does not visibly provide a project-submission form, so ask through the official [NSoC Discord](https://discord.gg/bZ47fac2jn) for the correct Project Kernel application process and current deadline.
 
-### Version Management
-- ✅ **config.py** - Added `__version__ = "1.0.0"`
+## Repository readiness checklist
 
-## 📋 NSOC Submission Checklist
+### Project submission and ownership
 
-### Before Submission
+- [x] Public GitHub repository with an open-source license.
+- [x] README identifies the project and links to NSoC without claiming acceptance or official affiliation.
+- [ ] Confirm the project-submission workflow, application deadline, and any eligibility requirements with NSoC organizers.
+- [ ] Submit a concise project proposal: problem, intended users, current working features, architecture, stack, and what contributors can ship during the program.
+- [ ] State who maintains the repository, how contributors contact the maintainer, and expected review availability during the program.
 
-1. **Update Repository URLs**
-   - Replace `your-username` in all files with your actual GitHub username
-   - Update email addresses in SECURITY.md and SUPPORT.md
-   - Update funding links in .github/FUNDING.yml
+### Contributor-ready issue backlog
 
-2. **Update README Links**
-   - Replace placeholder GitHub URLs with actual repository URL
-   - Update Star History chart with correct repository
-   - Add your organization/team name if applicable
+- [ ] Publish a small, real backlog before the program starts; do not create misleading or filler tasks to inflate issue counts.
+- [ ] Include at least one verified, low-risk onboarding task, a few bounded feature or bug-fix tasks, and one or more deeper tasks appropriate to the available mentoring capacity.
+- [ ] For each issue, give context, expected result, scope, acceptance criteria, relevant files, setup/test instructions, and known dependencies.
+- [ ] Label difficulty and area consistently, and identify which tasks are open for contributors to claim.
+- [ ] Keep issue status current and close or update stale, duplicate, or already-completed tasks.
+- [ ] Add screenshots or a short demo of the current application so contributors can understand the product before changing it.
 
-3. **Update CODEOWNERS**
-   - Replace `@your-username` with your actual GitHub handle
-   - Add team members if working in a group
+### Engineering and review quality
 
-4. **Update FUNDING.yml**
-   - Configure actual sponsorship platforms (Patreon, Ko-fi, etc.)
-   - Remove unused platforms or set to empty
+- [ ] Add automated tests for core flows and make CI fail when required checks fail.
+- [ ] Keep linting, syntax checks, and dependency/security checks actionable; a check that always passes after an error does not demonstrate a passing quality gate.
+- [ ] Test installation and the main user journey from a clean environment; document exact commands and known limitations.
+- [ ] Give contributors a reproducible local setup, sample environment configuration, and safe test data.
+- [ ] Review pull requests promptly, explain requested changes, and document acceptance criteria before contributors begin large tasks.
+- [ ] Ensure pull requests describe the change, link an issue, and report tests run or not run.
 
-5. **Create GitHub Repository**
-   - Create a new repository on GitHub
-   - Initialize with existing code (DO NOT add README, .gitignore, or license - they already exist)
-   - Set repository visibility to Public
+### Trust, privacy, and maintainability
 
-6. **Push to GitHub**
-   ```bash
-   git remote add origin https://github.com/your-username/ai-campus-placement-agent.git
-   git branch -M main
-   git push -u origin main
-   ```
+- [ ] Document what resume data is stored locally, what is sent to the Gemini API, retention/deletion behavior, and any relevant user consent or privacy limitations.
+- [ ] Keep real resumes, database files, generated reports, API keys, and other sensitive artifacts out of Git; use synthetic examples for demos and tests.
+- [ ] Provide a clear demo URL or screenshots, without exposing real user information or secrets.
+- [ ] Replace repository placeholders and ensure issue, clone, security-reporting, and project links work.
+- [ ] Keep the README claims aligned with the implementation and label planned features as planned rather than complete.
 
-7. **Configure GitHub Repository Settings**
-   - Enable GitHub Actions
-   - Enable Issues and Pull Requests
-   - Enable Discussions
-   - Enable Projects (if using project boards)
-   - Add repository topics: ai, agents, placement, resume, interview, flask, python, gemini
-   - Enable "Require pull request reviews before merging" (if needed)
-   - Enable "Require status checks to pass before merging"
-   - Add CODEOWNERS rules in repository settings
+## Gaps visible in this repository
 
-8. **Update Security Email**
-   - Replace placeholder email in SECURITY.md with actual contact
-   - Configure security policy in GitHub repository settings
+These are observations from the repository as it stands, not claims about NSoC's private evaluation decisions:
 
-9. **Test CI/CD Pipeline**
-   - Push a test commit to verify GitHub Actions work
-   - Check that all workflows pass successfully
-   - Verify Docker build workflow completes
+1. **The project needs demonstrable, contributor-sized work.** The official Project Kernel description emphasizes issues across experience levels, review, and mentorship. A completed feature list alone does not show a prepared issue backlog or available mentoring.
+2. **There is no public contributor backlog yet.** At review time (October 25, 2026), GitHub showed zero open issues and no pull requests. This is not a stated NSoC rejection criterion, but it leaves no visible proof that the repository is ready to receive and mentor contributors. GitHub Discussions are also disabled, so direct contributors to Issues instead.
+3. **The current CI run is red.** On October 25, 2026, the latest public CI run failed at `black --check .`, reporting 12 Python files that need formatting; the downstream build/test job was skipped. The separate Docker build passed. Fix the formatting failure, then rerun CI and address any checks that fail afterward. See the [failed CI run](https://github.com/deepikagandla74/ai-campus-placement-agent/actions/runs/40209312774).
+4. **Automated test evidence is thin.** The root `test.py` is a manual Gemini API smoke script, not a project test suite, and no `tests/` directory was found. The CI workflow runs syntax/import checks; its lint and security steps are configured not to fail the workflow on findings. Add focused tests and make required checks meaningful.
+5. **A public demo is missing from the README.** A reviewer should be able to see the application quickly through a deployed demo or sanitized screenshots/video.
+6. **Resume data needs explicit privacy documentation.** The code saves uploaded PDF resumes locally, extracts their text, sends that text as part of a Gemini prompt, and stores the job description and analysis results in SQLite. Explain this data flow, storage locations, deletion/retention behavior, and relevant user consent or limitations in plain language. Use synthetic data in demos.
+7. **Some documentation may still overstate completeness.** Verify that described features and setup steps match the current code; prioritize a reliable, repeatable core flow over a long roadmap.
+8. **Application timing needs confirmation.** The public program timeline already lists contributions as started on October 19, 2026. Contact NSoC to confirm whether a new Project Kernel can still be added during the active program.
 
-10. **Create Initial Release**
-    - Go to GitHub Releases
-    - Create a new release tagged `v1.0.0`
-    - Use CHANGELOG.md content for release notes
-    - Attach compiled assets if applicable
+## Recommended next steps
 
-### NSOC-Specific Requirements
-
-11. **Project Description**
-    - Ensure README clearly describes the project's purpose
-    - Highlight NSOC Winter Edition in the README
-    - Include demonstration guidelines (already present)
-
-12. **Tech Stack Documentation**
-    - Verify all technologies are listed in README
-    - Include version information where relevant
-    - Document AI model usage (Gemini API)
-
-13. **Installation Instructions**
-    - Verify installation steps are clear and complete
-    - Test on a fresh system to ensure reproducibility
-    - Include both local and Docker deployment methods
-
-14. **Demo Preparation**
-    - Record a 3-5 minute demonstration following the guidelines in README
-    - Upload demo video to YouTube or similar platform
-    - Add demo link to README
-
-15. **Screenshots**
-    - Add screenshots of the application to README
-    - Include images of:
-      - Landing page
-      - Dashboard with analysis results
-      - Interview simulator
-      - PDF report sample
-
-16. **License Verification**
-    - Confirm MIT License is appropriate for NSOC
-    - Verify all third-party dependencies have compatible licenses
-
-17. **Documentation Quality**
-    - Ensure all documentation is professional and error-free
-    - Check for broken links
-    - Verify code examples are accurate
-
-### Final Pre-Submission Checks
-
-18. **Test the Application**
-    - Run the application locally
-    - Test all major features:
-      - Resume upload and analysis
-      - Job description matching
-      - Skill gap analysis
-      - Roadmap generation
-      - Interview simulator
-      - PDF report download
-
-19. **Check Git History**
-    - Review commit messages
-    - Ensure no sensitive data is in history
-    - Clean up unnecessary branches
-
-20. **Review All Files**
-    - Check for any placeholder text remaining
-    - Verify all URLs are correct
-    - Ensure contact information is accurate
-
-21. **Create NSOC Submission**
-    - Prepare NSOC submission form with repository URL
-    - Include demo video link
-    - Add project description and highlights
-    - Submit before deadline
-
-## 🎯 NSOC Evaluation Criteria
-
-Based on typical open source project evaluation, ensure your project excels in:
-
-1. **Code Quality** - Clean, well-documented, follows best practices
-2. **Documentation** - Comprehensive, clear, and helpful
-3. **Community Ready** - Contribution guidelines, templates, support
-4. **Innovation** - Unique multi-agent architecture
-5. **Impact** - Real-world application for students
-6. **Maintainability** - CI/CD, automated testing, proper structure
-7. **Open Source Best Practices** - License, CODEOWNERS, security policy
-
-## 📚 Additional Resources
-
-- [GitHub Open Source Guide](https://opensource.guide/)
-- [Choose an Open Source License](https://choosealicense.com/)
-- [NSOC Guidelines](https://nsoc.example.com) - Update with actual NSOC URL
-
-## ✨ Tips for NSOC Success
-
-1. **Active Maintenance** - Respond to issues and PRs quickly during evaluation
-2. **Community Engagement** - Encourage others to star and fork the repository
-3. **Clear Communication** - Be responsive in Discussions and Issues
-4. **Professional Presentation** - Keep documentation polished and up-to-date
-5. **Highlight Innovation** - Emphasize the multi-agent architecture in all materials
-
----
-
-**Status**: Ready for NSOC Winter Edition submission after completing the checklist above.
-
-**Next Steps**: Complete the checklist items, push to GitHub, and submit to NSOC.
+1. Ask NSoC organizers through the official Discord for the Project Kernel application link, deadline, current acceptance requirements, and whether late project onboarding is possible.
+2. Prepare a short proposal with the project problem, live demo, tested setup, roadmap for the program period, maintainer availability, and examples of starter/intermediate/advanced issues.
+3. Add and verify real contributor issues, then test the complete clone-to-run workflow and CI on a clean environment.
+4. Add a privacy/data-flow section and sanitized screenshots or a demo recording.
+5. Submit only after the project links, GitHub ownership, tests, and contributor instructions are verified.

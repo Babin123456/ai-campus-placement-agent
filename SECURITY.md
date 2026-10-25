@@ -14,7 +14,7 @@ If you discover a security vulnerability in the AI Campus Placement Agent, pleas
 
 **Please do NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please send an email to: [INSERT SECURITY EMAIL HERE]
+Instead, report the issue privately using [GitHub Security Advisories](https://github.com/deepikagandla74/ai-campus-placement-agent/security/advisories/new).
 
 Include the following information in your report:
 

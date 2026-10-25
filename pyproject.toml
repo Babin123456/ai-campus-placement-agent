@@ -58,10 +58,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-username/ai-campus-placement-agent"
-Documentation = "https://github.com/your-username/ai-campus-placement-agent#readme"
-Repository = "https://github.com/your-username/ai-campus-placement-agent"
-Issues = "https://github.com/your-username/ai-campus-placement-agent/issues"
+Homepage = "https://github.com/deepikagandla74/ai-campus-placement-agent"
+Documentation = "https://github.com/deepikagandla74/ai-campus-placement-agent#readme"
+Repository = "https://github.com/deepikagandla74/ai-campus-placement-agent"
+Issues = "https://github.com/deepikagandla74/ai-campus-placement-agent/issues"
 
 [tool.setuptools]
 packages = []

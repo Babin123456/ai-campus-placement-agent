@@ -28,7 +28,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 1. Fork the repository on GitHub
 2. Clone your fork locally:
    ```bash
-   git clone https://github.com/your-username/ai-campus-placement-agent.git
+   git clone https://github.com/deepikagandla74/ai-campus-placement-agent.git
    cd ai-campus-placement-agent
    ```
 
@@ -52,7 +52,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
    - Copy `.env.example` (if available) or create a `.env` file
    - Add your Gemini API key:
      ```
-     FLASK_SECRET_KEY=your_secret_key_here
+     FLASK_SECRET_KEY=replace_with_a_long_random_secret
      GEMINI_API_KEY=your_gemini_api_key_here
      ```
 
@@ -76,6 +76,14 @@ We welcome contributions in the following areas:
 - **Performance optimizations**: Make the application faster and more efficient
 - **Test coverage**: Add tests to improve code reliability
 
+### Working on an Issue
+
+Before starting a substantial change, open or claim an issue and confirm the proposed approach with the maintainers. This helps avoid duplicate work and keeps contributions aligned with the project.
+
+Issues intended for new contributors should explain the problem, expected outcome, relevant files or routes, reproduction steps where applicable, and how the change can be verified. Maintainers should label issues by scope and difficulty only when those labels are meaningful and the task is ready to work on.
+
+For NSoC Project Kernel consideration, the project maintainer is responsible for keeping real, well-scoped issues for different experience levels, reviewing pull requests, and helping contributors understand the codebase. These are responsibilities described on the [official NSoC site](https://www.nsoc.in/); they are not a promise of acceptance into the program.
+
 ### Development Workflow
 
 1. Create a new branch for your feature or bugfix:
@@ -92,7 +100,7 @@ We welcome contributions in the following areas:
    - Update relevant documentation
 
 3. Test your changes thoroughly:
-   - Ensure the application runs without errors
+   - Run relevant automated checks and report exact commands and results in your PR
    - Test the specific feature you modified
    - Check for regressions in existing functionality
 
@@ -142,11 +150,12 @@ We welcome contributions in the following areas:
 Before submitting your PR, ensure:
 
 - [ ] Code follows the project's style guidelines
-- [ ] Changes are tested and working
+- [ ] Changes are tested; PR describes what was run and any checks not run
 - [ ] Documentation is updated if needed
 - [ ] Commit messages are clear and descriptive
 - [ ] No merge conflicts with the main branch
 - [ ] PR description explains the "why" and "what" of changes
+- [ ] PR is linked to a relevant issue or explains why no issue was needed
 
 ## Reporting Issues
 
@@ -179,8 +188,8 @@ For feature requests, please include:
 
 If you have questions about contributing:
 
-- Check existing [Issues](https://github.com/your-username/ai-campus-placement-agent/issues)
-- Start a [Discussion](https://github.com/your-username/ai-campus-placement-agent/discussions)
+- Check existing [Issues](https://github.com/deepikagandla74/ai-campus-placement-agent/issues)
+- Open an [Issue](https://github.com/deepikagandla74/ai-campus-placement-agent/issues) with your question
 - Contact maintainers through the repository
 
 ## Recognition

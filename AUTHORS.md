@@ -2,9 +2,9 @@
 
 This project is developed and maintained by the AI Campus Placement Agent community.
 
-## Project Lead
+## Maintainer
 
-- [Your Name](https://github.com/your-username)
+- [Deepika Gandla](https://github.com/deepikagandla74)
 
 ## Contributors
 

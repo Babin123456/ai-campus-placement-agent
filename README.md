@@ -1,15 +1,17 @@
 # AI Campus Placement Agent
 
+> **NSoC Winter Edition — Project Kernel submission:** This independently maintained open-source project is being prepared for consideration. NSoC participation or selection is not confirmed. See the [official NSoC site](https://www.nsoc.in/), [project directory](https://www.nsoc.in/projects), and this repository's [readiness checklist](NSOC_READINESS_CHECKLIST.md).
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Flask](https://img.shields.io/badge/Flask-3.0.3-green.svg)](https://flask.palletsprojects.com/)
-[![Open Source](https://img.shields.io/badge/Open%20Source-Yes-success.svg)](https://github.com/your-username/ai-campus-placement-agent)
+[![Open Source](https://img.shields.io/badge/Open%20Source-Yes-success.svg)](https://github.com/deepikagandla74/ai-campus-placement-agent)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 [![Contributors](https://img.shields.io/badge/contributors-welcome-orange.svg)](CONTRIBUTING.md)
 
 An AI-powered multi-agent assistant that helps students prepare for campus placements through resume analysis, job matching, personalized learning roadmaps, skill gap analysis, and interactive mock interviews.
 
-This is a production-quality application built for the **NSOC Winter Edition**.
+This is an independently developed open-source application. It is not an official NSoC project unless and until accepted by the program.
 
 ---
 
@@ -138,14 +140,14 @@ AI-Campus-Placement-Agent/
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/your-username/ai-campus-placement-agent.git
+git clone https://github.com/deepikagandla74/ai-campus-placement-agent.git
 cd ai-campus-placement-agent
 ```
 
 ### 2. Configure Environment Variables
 Create a `.env` file in the root folder:
 ```env
-FLASK_SECRET_KEY=placement_agent_secret_key_12345
+FLASK_SECRET_KEY=your_generated_random_secret
 GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
 ```
 > **Note:** Generate your Gemini API Key from Google AI Studio.
@@ -165,7 +167,7 @@ The application will be running at `http://127.0.0.1:5000/`. Open this link in y
 
 ---
 
-## Demonstration Guidelines (3–5 Minute Capstone Pitch)
+## Demo Walkthrough (3–5 Minutes)
 
 1. **Slide 1: Problem & Multi-Agent Solution** (30s)
    * Explain the friction students experience when jumping between disconnected tools for resumes, ATS, calendars, and mock coding.
@@ -187,7 +189,7 @@ The application will be running at `http://127.0.0.1:5000/`. Open this link in y
 
 ## Future Scope
 
-To extend the system beyond the capstone project, the following features are planned:
+The following features are being considered:
 * **GitHub Profile Analyzer**: Scrape repositories to grade coding quality and contribution frequency.
 * **LinkedIn Profile Review**: Sync profile sections to suggest bio keywords and networking adjustments.
 * **Voice Mock Interviews**: Support voice-to-text and speech analysis to grade interview tone and pace.
@@ -295,17 +297,13 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 - 📖 [Documentation](README.md)
 - 🆘 [Support Guide](SUPPORT.md) - Get help and common solutions
-- 💬 [Discussions](https://github.com/your-username/ai-campus-placement-agent/discussions)
-- 🐛 [Issue Tracker](https://github.com/your-username/ai-campus-placement-agent/issues)
-- 📧 [Email Support](mailto:support@example.com)
+- 🐛 [Issue Tracker](https://github.com/deepikagandla74/ai-campus-placement-agent/issues)
 
 ---
 
 ## Acknowledgments
 
-- Built as an open-source project for NSOC Winter Edition
 - Powered by Google Gemini API
-- Designed for NSOC Winter Edition
 
 ---
 
@@ -313,4 +311,4 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 If you find this project helpful, please consider giving it a ⭐ star on GitHub!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=your-username/ai-campus-placement-agent&type=Date)](https://star-history.com/#your-username/ai-campus-placement-agent&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=deepikagandla74/ai-campus-placement-agent&type=Date)](https://star-history.com/#deepikagandla74/ai-campus-placement-agent&Date)

@@ -1,8 +1,1 @@
 blank_issues_enabled: true
-contact_links:
-  - name: Questions and Support
-    url: https://github.com/your-username/ai-campus-placement-agent/discussions
-    about: Please ask and answer questions in the Discussions tab.
-  - name: Feature Requests
-    url: https://github.com/your-username/ai-campus-placement-agent/discussions/categories/ideas
-    about: Share ideas for new features in the Ideas discussion category.
