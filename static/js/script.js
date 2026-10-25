@@ -1,10 +1,54 @@
 // Frontend interactions - AI Campus Placement Agent
 
 document.addEventListener("DOMContentLoaded", () => {
+  initRecentAnalyses();
   initFormUpload();
   initCircularProgress();
   initMockInterview();
 });
+
+function initRecentAnalyses() {
+  const listEl = document.getElementById("recentAnalysesList");
+  if (!listEl) return;
+
+  const dash = document.getElementById("dashboardContainer");
+  let recents = [];
+  try {
+    recents = JSON.parse(localStorage.getItem("recent_placement_analyses") || "[]");
+  } catch (e) {
+    recents = [];
+  }
+
+  if (dash) {
+    const aId = dash.getAttribute("data-analysis-id");
+    const company = dash.getAttribute("data-company") || "General";
+    const dateStr = dash.getAttribute("data-date") || new Date().toLocaleDateString();
+
+    if (aId) {
+      recents = recents.filter((r) => r.id !== aId);
+      recents.unshift({ id: aId, company: company, date: dateStr });
+      if (recents.length > 5) recents = recents.slice(0, 5);
+      localStorage.setItem("recent_placement_analyses", JSON.stringify(recents));
+    }
+  }
+
+  if (recents.length > 0) {
+    listEl.innerHTML = "";
+    recents.forEach((item) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <a class="dropdown-item d-flex justify-content-between align-items-center py-2 rounded-2" href="/dashboard/${item.id}">
+          <div>
+            <div class="fw-semibold text-dark small">${item.company}</div>
+            <div class="text-muted" style="font-size: 0.75rem;">ID: ${item.id.slice(0, 8)}...</div>
+          </div>
+          <i class="fa-solid fa-chevron-right text-muted small ms-2"></i>
+        </a>
+      `;
+      listEl.appendChild(li);
+    });
+  }
+}
 
 /**
  * Handlers for landing page upload forms & progress panel animations
