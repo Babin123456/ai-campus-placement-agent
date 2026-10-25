@@ -61,8 +61,12 @@ function initFormUpload() {
 
   // Intercept form submit to show animated Agent Progress panel
   uploadForm.addEventListener("submit", (e) => {
-    if (!fileInput.files || fileInput.files.length === 0) {
-      alert("Please upload a PDF resume first.");
+    const textInput = document.getElementById("resumeTextInput");
+    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+    const hasText = textInput && textInput.value.trim().length > 0;
+
+    if (!hasFile && !hasText) {
+      alert("Please upload a PDF resume or paste your resume text first.");
       e.preventDefault();
       return;
     }
