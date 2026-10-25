@@ -167,26 +167,6 @@ The application will be running at `http://127.0.0.1:5000/`. Open this link in y
 
 ---
 
-## Demo Walkthrough (3–5 Minutes)
-
-1. **Slide 1: Problem & Multi-Agent Solution** (30s)
-   * Explain the friction students experience when jumping between disconnected tools for resumes, ATS, calendars, and mock coding.
-   * Introduce the Coordinated Multi-Agent concept.
-2. **Action 1: Upload & Process** (45s)
-   * Upload a sample resume PDF, select "Google" or "Amazon", paste a job description, and click "Analyze".
-   * Draw attention to the **Agent Progress Panel** showing live steps as each agent finishes its delegated calculations.
-3. **Action 2: Dashboard Deep Dive** (60s)
-   * Show the visual gauges (ATS, Job Match).
-   * Expand the strengths/weaknesses accordions.
-   * Point out the skill gap priority matrix and the timeline roadmap.
-4. **Action 3: Interactive Interview Simulator** (45s)
-   * Start the mock interview. Type a response to the current question.
-   * Show the immediate response evaluation (technical score, communication score, recommendations) rendering in the sidebar.
-5. **Action 4: PDF Compilation** (30s)
-   * Click "Download Report". Open the compiled ReportLab PDF to display structured, printable placement roadmaps.
-
----
-
 ## Future Scope
 
 The following features are being considered:
@@ -217,48 +197,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ **Study Roadmaps**: 6-week customized curriculum generation
 - ✅ **Mock Interviews**: Interactive interview simulator with real-time evaluation
 - ✅ **PDF Reports**: Comprehensive placement readiness reports
-- ✅ **Docker Support**: Containerized deployment with Docker and Docker Compose
 - ✅ **CI/CD Pipeline**: GitHub Actions for automated testing and validation
 
 ---
-
-## Deployment
-
-### Using Docker
-
-Build and run the application using Docker:
-
-```bash
-# Build the Docker image
-docker build -t ai-campus-placement-agent .
-
-# Run the container
-docker run -p 5000:5000 \
-  -e FLASK_SECRET_KEY=your_secret_key \
-  -e GEMINI_API_KEY=your_gemini_api_key \
-  ai-campus-placement-agent
-```
-
-### Using Docker Compose
-
-For a complete setup with volume persistence:
-
-```bash
-# Create .env file with your credentials
-echo "FLASK_SECRET_KEY=your_secret_key" > .env
-echo "GEMINI_API_KEY=your_gemini_api_key" >> .env
-
-# Start the application
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop the application
-docker-compose down
-```
-
-The application will be available at `http://localhost:5000/`
 
 ---
 
@@ -298,12 +239,6 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 - 📖 [Documentation](README.md)
 - 🆘 [Support Guide](SUPPORT.md) - Get help and common solutions
 - 🐛 [Issue Tracker](https://github.com/deepikagandla74/ai-campus-placement-agent/issues)
-
----
-
-## Acknowledgments
-
-- Powered by Google Gemini API
 
 ---
 
