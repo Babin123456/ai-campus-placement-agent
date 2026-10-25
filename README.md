@@ -9,7 +9,7 @@
 
 An AI-powered multi-agent assistant that helps students prepare for campus placements through resume analysis, job matching, personalized learning roadmaps, skill gap analysis, and interactive mock interviews.
 
-This is a production-quality application built for the **Kaggle AI Agents Intensive Course Capstone Project** and **NSOC Winter Edition**.
+This is a production-quality application built for the **NSOC Winter Edition**.
 
 ---
 
@@ -303,7 +303,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## Acknowledgments
 
-- Built for the Kaggle AI Agents Intensive Course
+- Built as an open-source project for NSOC Winter Edition
 - Powered by Google Gemini API
 - Designed for NSOC Winter Edition
 

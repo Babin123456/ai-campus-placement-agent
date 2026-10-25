@@ -24,6 +24,5 @@ If you've contributed to this project (merged PRs, significant bug reports, or d
 
 ## Special Thanks
 
-- Kaggle AI Agents Intensive Course team for the inspiration and guidance
 - Google AI team for the Gemini API
 - All users who provide feedback and report issues
