@@ -170,7 +170,8 @@ def interview(analysis_id: str) -> str:
     return render_template(
         "interview.html",
         interview=interview_session,
-        analysis_id=analysis_id
+        analysis_id=analysis_id,
+        company_name=analysis_record.get("company_name", "General"),
     )
 
 @app.route("/interview/<analysis_id>/submit", methods=["POST"])
