@@ -251,8 +251,9 @@ function initMockInterview() {
     document.getElementById("techScore").innerText = `${evaluation.technical_accuracy}%`;
     document.getElementById("techBar").style.width = `${evaluation.technical_accuracy}%`;
 
-    const progPercent = Math.round((totalAnswered / 15) * 100);
-    document.getElementById("interviewProgressText").innerText = `${totalAnswered}/15 Questions Answered (${progPercent}%)`;
+    const totalQuestions = parseInt(chatForm.getAttribute("data-total-questions")) || 15;
+    const progPercent = totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0;
+    document.getElementById("interviewProgressText").innerText = `${totalAnswered}/${totalQuestions} Questions Answered (${progPercent}%)`;
     document.getElementById("interviewProgressBar").style.width = `${progPercent}%`;
   }
 }
