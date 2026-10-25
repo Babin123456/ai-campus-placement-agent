@@ -4,7 +4,38 @@ document.addEventListener("DOMContentLoaded", () => {
   initFormUpload();
   initCircularProgress();
   initMockInterview();
+  initSkillGapFilter();
 });
+
+function initSkillGapFilter() {
+  const searchInput = document.getElementById("skillSearchInput");
+  const priorityFilter = document.getElementById("skillPriorityFilter");
+  const table = document.getElementById("skillGapTable");
+  if (!table || !searchInput || !priorityFilter) return;
+
+  const rows = table.querySelectorAll("tbody tr");
+
+  function applyFilter() {
+    const q = searchInput.value.toLowerCase().trim();
+    const p = priorityFilter.value;
+
+    rows.forEach((row) => {
+      const skillName = row.getAttribute("data-skill") || "";
+      const priority = row.getAttribute("data-priority") || "";
+      const matchesSearch = !q || skillName.includes(q) || row.innerText.toLowerCase().includes(q);
+      const matchesPriority = p === "ALL" || priority.toLowerCase() === p.toLowerCase();
+
+      if (matchesSearch && matchesPriority) {
+        row.style.display = "";
+      } else {
+        row.style.display = "none";
+      }
+    });
+  }
+
+  searchInput.addEventListener("input", applyFilter);
+  priorityFilter.addEventListener("change", applyFilter);
+}
 
 /**
  * Handlers for landing page upload forms & progress panel animations
