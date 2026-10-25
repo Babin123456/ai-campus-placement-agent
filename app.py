@@ -249,6 +249,23 @@ def submit_interview_answer(analysis_id: str):
         logger.error(f"Failed to process answer submission: {str(e)}")
         return jsonify({"error": f"Internal process error evaluating response: {str(e)}"}), 500
 
+
+@app.route("/certificate/<analysis_id>")
+def certificate(analysis_id: str):
+    """
+    Renders printable placement readiness completion certificate.
+    """
+    analysis_record = get_analysis(analysis_id)
+    if not analysis_record:
+        flash("The requested placement analysis report could not be found.", "error")
+        return redirect(url_for("index"))
+
+    return render_template(
+        "certificate.html",
+        analysis=analysis_record,
+        analysis_id=analysis_id,
+    )
+
 @app.route("/download/<analysis_id>")
 def download_pdf_report(analysis_id: str):
     """
