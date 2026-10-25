@@ -4,7 +4,50 @@ document.addEventListener("DOMContentLoaded", () => {
   initFormUpload();
   initCircularProgress();
   initMockInterview();
+  initCompanyExplorer();
 });
+
+function initCompanyExplorer() {
+  const btn = document.getElementById("btnExploreCompany");
+  const select = document.getElementById("companySelect");
+  const modalEl = document.getElementById("companyModal");
+  const modalBody = document.getElementById("companyModalBody");
+  if (!btn || !select || !modalEl) return;
+
+  btn.addEventListener("click", async () => {
+    const company = select.value;
+    if (!company || company === "General") {
+      alert("Please select a specific company (e.g. Google, Microsoft, Amazon) to explore its hiring guide.");
+      return;
+    }
+    const bsModal = new bootstrap.Modal(modalEl);
+    modalBody.innerHTML = '<div class="text-center py-4"><span class="spinner-border text-primary" role="status"></span></div>';
+    bsModal.show();
+
+    try {
+      const res = await fetch(`/api/company/${encodeURIComponent(company)}`);
+      const data = await res.json();
+      if (data.success && data.details) {
+        const d = data.details;
+        modalBody.innerHTML = `
+          <h4 class="fw-bold text-primary mb-3">${data.company}</h4>
+          <p class="text-secondary">${d.overview || ""}</p>
+          <hr/>
+          <h6 class="fw-bold"><i class="fa-solid fa-list-check text-primary me-2"></i>Hiring Process:</h6>
+          <p class="small text-muted mb-3">${d.hiring_process || "N/A"}</p>
+          <h6 class="fw-bold"><i class="fa-solid fa-laptop-code text-primary me-2"></i>Technical Rounds:</h6>
+          <p class="small text-muted mb-3">${d.technical_rounds || "N/A"}</p>
+          <h6 class="fw-bold"><i class="fa-solid fa-lightbulb text-warning me-2"></i>Preparation Tips:</h6>
+          <div class="alert alert-light border small text-dark">${d.prep_tips || "N/A"}</div>
+        `;
+      } else {
+        modalBody.innerHTML = `<div class="alert alert-warning">No details found for ${company}.</div>`;
+      }
+    } catch (err) {
+      modalBody.innerHTML = '<div class="alert alert-danger">Error loading company details.</div>';
+    }
+  });
+}
 
 /**
  * Handlers for landing page upload forms & progress panel animations
