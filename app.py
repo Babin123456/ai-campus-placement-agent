@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 # Initialize Flask application
 app = Flask(__name__)
 app.secret_key = config.FLASK_SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
+
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    flash("Uploaded file exceeds the 16MB size limit. Please upload a smaller PDF.", "error")
+    return redirect(url_for("index"))
 
 # Ensure directories exist
 os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
