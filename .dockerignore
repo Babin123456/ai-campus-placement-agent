@@ -1,0 +1,68 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.venv
+venv
+ENV
+env
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Uploads and reports (will be created in container)
+uploads/*
+reports/*
+!uploads/.gitkeep
+!reports/.gitkeep
+
+# Documentation (already in README)
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+CHANGELOG.md
+
+# GitHub
+.github
+
+# Tests
+tests
+.pytest_cache
+.coverage
+htmlcov
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml

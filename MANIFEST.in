@@ -1,0 +1,34 @@
+include README.md
+include LICENSE
+include CONTRIBUTING.md
+include CODE_OF_CONDUCT.md
+include SECURITY.md
+include CHANGELOG.md
+include SUPPORT.md
+include AUTHORS.md
+include CONTRIBUTORS.md
+include requirements.txt
+include pyproject.toml
+include .env.example
+
+recursive-include agents *.py
+recursive-include utils *.py
+recursive-include static *.css *.js *.png *.jpg *.jpeg *.gif *.svg *.ico
+recursive-include templates *.html
+recursive-include data *.json
+
+global-exclude __pycache__
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude *.pyd
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude *.egg
+global-exclude *.egg-info
+global-exclude dist
+global-exclude build
+global-exclude .git
+global-exclude .env
+global-exclude *.db
+global-exclude uploads/*
+global-exclude reports/*

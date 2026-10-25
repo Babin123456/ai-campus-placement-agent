@@ -1,0 +1,30 @@
+# Code Owners
+
+# The default code owner for everything in the repository
+* @your-username
+
+# Specific code owners for different areas
+
+# Core application
+app.py @your-username
+config.py @your-username
+prompts.py @your-username
+
+# Agents
+agents/ @your-username
+
+# Utilities
+utils/ @your-username
+
+# Frontend
+static/ @your-username
+templates/ @your-username
+
+# Data
+data/ @your-username
+
+# CI/CD
+.github/ @your-username
+
+# Documentation
+*.md @your-username

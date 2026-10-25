@@ -1,0 +1,34 @@
+# Configuration for GitHub Action Labeler
+# https://github.com/actions/labeler
+
+# Add labels based on file changes
+
+documentation:
+  - changed-files:
+      - "*.md"
+
+bug:
+  - changed-files:
+      - any: ["*.py"]
+      - all-globs-to-any-match: ["!tests/**"]
+
+enhancement:
+  - changed-files:
+      - "agents/**"
+      - "utils/**"
+
+ui:
+  - changed-files:
+      - "templates/**"
+      - "static/**"
+
+ci/cd:
+  - changed-files:
+      - ".github/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+
+dependencies:
+  - changed-files:
+      - "requirements.txt"
+      - "pyproject.toml"

@@ -2,6 +2,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Project version
+__version__ = "1.0.0"
+
 # Load env variables from .env
 load_dotenv()
 

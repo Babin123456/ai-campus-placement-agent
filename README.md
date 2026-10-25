@@ -1,8 +1,15 @@
 # AI Campus Placement Agent
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Flask](https://img.shields.io/badge/Flask-3.0.3-green.svg)](https://flask.palletsprojects.com/)
+[![Open Source](https://img.shields.io/badge/Open%20Source-Yes-success.svg)](https://github.com/your-username/ai-campus-placement-agent)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+[![Contributors](https://img.shields.io/badge/contributors-welcome-orange.svg)](CONTRIBUTING.md)
+
 An AI-powered multi-agent assistant that helps students prepare for campus placements through resume analysis, job matching, personalized learning roadmaps, skill gap analysis, and interactive mock interviews.
 
-This is a production-quality application built for the **Kaggle AI Agents Intensive Course Capstone Project**.
+This is a production-quality application built for the **Kaggle AI Agents Intensive Course Capstone Project** and **NSOC Winter Edition**.
 
 ---
 
@@ -194,4 +201,116 @@ To extend the system beyond the capstone project, the following features are pla
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Project Status
+
+- ✅ **Multi-Agent Architecture**: Coordinated agent system with specialized sub-agents
+- ✅ **Web Interface**: Responsive Flask-based UI with Bootstrap 5
+- ✅ **Resume Analysis**: ATS scoring, grammar checks, and improvement suggestions
+- ✅ **Job Matching**: Keyword extraction and match percentage calculation
+- ✅ **Skill Gap Analysis**: Prioritized learning paths with time estimates
+- ✅ **Study Roadmaps**: 6-week customized curriculum generation
+- ✅ **Mock Interviews**: Interactive interview simulator with real-time evaluation
+- ✅ **PDF Reports**: Comprehensive placement readiness reports
+- ✅ **Docker Support**: Containerized deployment with Docker and Docker Compose
+- ✅ **CI/CD Pipeline**: GitHub Actions for automated testing and validation
+
+---
+
+## Deployment
+
+### Using Docker
+
+Build and run the application using Docker:
+
+```bash
+# Build the Docker image
+docker build -t ai-campus-placement-agent .
+
+# Run the container
+docker run -p 5000:5000 \
+  -e FLASK_SECRET_KEY=your_secret_key \
+  -e GEMINI_API_KEY=your_gemini_api_key \
+  ai-campus-placement-agent
+```
+
+### Using Docker Compose
+
+For a complete setup with volume persistence:
+
+```bash
+# Create .env file with your credentials
+echo "FLASK_SECRET_KEY=your_secret_key" > .env
+echo "GEMINI_API_KEY=your_gemini_api_key" >> .env
+
+# Start the application
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the application
+docker-compose down
+```
+
+The application will be available at `http://localhost:5000/`
+
+---
+
+## Roadmap
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and upcoming features.
+
+### Planned Features
+
+- [ ] GitHub Profile Analyzer
+- [ ] LinkedIn Profile Review
+- [ ] Voice Mock Interviews
+- [ ] Resume Version Comparison
+- [ ] LeetCode Progress Tracking
+- [ ] Recruiter Email Generator
+- [ ] Placement Calendar Integration
+- [ ] Internship Recommendation Agent
+
+---
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Quick Start for Contributors
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## Community & Support
+
+- 📖 [Documentation](README.md)
+- 🆘 [Support Guide](SUPPORT.md) - Get help and common solutions
+- 💬 [Discussions](https://github.com/your-username/ai-campus-placement-agent/discussions)
+- 🐛 [Issue Tracker](https://github.com/your-username/ai-campus-placement-agent/issues)
+- 📧 [Email Support](mailto:support@example.com)
+
+---
+
+## Acknowledgments
+
+- Built for the Kaggle AI Agents Intensive Course
+- Powered by Google Gemini API
+- Designed for NSOC Winter Edition
+
+---
+
+## Star History
+
+If you find this project helpful, please consider giving it a ⭐ star on GitHub!
+
+[![Star History Chart](https://api.star-history.com/svg?repos=your-username/ai-campus-placement-agent&type=Date)](https://star-history.com/#your-username/ai-campus-placement-agent&Date)
