@@ -11,7 +11,7 @@
 
 An AI-powered multi-agent assistant that helps students prepare for campus placements through resume analysis, job matching, personalized learning roadmaps, skill gap analysis, and interactive mock interviews.
 
-This is an independently developed open-source application. It is not an official NSoC project unless and until accepted by the program.
+This is an independently developed open-source application.
 
 ---
 
