@@ -90,7 +90,7 @@
 
           <!-- Answer Input Form -->
           {% if not interview.completed %}
-            <form id="chatForm" data-question-index="{{ interview.current_question_index }}" data-analysis-id="{{ analysis_id }}">
+            <form id="chatForm" data-question-index="{{ interview.current_question_index }}" data-analysis-id="{{ analysis_id }}" data-total-questions="{{ interview.questions|length }}">
               <div class="input-group">
                 <textarea id="answerInput" class="form-control rounded-start-3" rows="3" placeholder="Type your answer here... Be descriptive and structured (STAR method)."></textarea>
                 <button class="btn btn-custom-primary px-4 rounded-end-3" type="submit">Submit Answer</button>
