@@ -112,33 +112,30 @@ def analyze():
     persists result states, and redirects to candidate dashboards.
     """
     try:
-        # Validate file upload presence
-        if "resume" not in request.files:
-            flash("No file key detected in upload form.", "error")
-            return redirect(url_for("index"))
+        pasted_text = request.form.get("resume_text", "").strip()
+        uploaded_file = request.files.get("resume")
+        file_uuid = str(uuid.uuid4())
+        resume_filename = "pasted_resume.txt"
 
-        uploaded_file = request.files["resume"]
-        if uploaded_file.filename == "":
-            flash("No resume file was selected. Please choose a PDF file.", "error")
-            return redirect(url_for("index"))
-
-        # Verify it's a PDF extension
-        if not uploaded_file.filename.lower().endswith('.pdf'):
-            flash("Invalid file format. Only PDF resumes are supported.", "error")
+        if pasted_text:
+            extracted_resume_text = pasted_text
+            resume_filename = "Pasted_Resume.txt"
+        elif uploaded_file and uploaded_file.filename != "":
+            if not uploaded_file.filename.lower().endswith(".pdf"):
+                flash("Invalid file format. Only PDF resumes are supported.", "error")
+                return redirect(url_for("index"))
+            resume_filename = uploaded_file.filename
+            safe_name = secure_filename(f"{file_uuid}_{uploaded_file.filename}")
+            saved_file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
+            uploaded_file.save(saved_file_path)
+            logger.info(f"Uploaded resume saved locally at: {saved_file_path}")
+            extracted_resume_text = extract_text_from_pdf(saved_file_path)
+        else:
+            flash("Please upload a PDF resume or paste your resume text.", "error")
             return redirect(url_for("index"))
 
         selected_company = request.form.get("company", "General").strip()
         job_description = request.form.get("job_description", "").strip()
-
-        # Save the file to local upload folders
-        file_uuid = str(uuid.uuid4())
-        safe_name = secure_filename(f"{file_uuid}_{uploaded_file.filename}")
-        saved_file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
-        uploaded_file.save(saved_file_path)
-        logger.info(f"Uploaded resume saved locally at: {saved_file_path}")
-
-        # Parse text content from the PDF
-        extracted_resume_text = extract_text_from_pdf(saved_file_path)
 
         # Execute coordinated multi-agent analysis via single Gemini call
         analysis_payload = coordinator_agent.analyze(
@@ -150,7 +147,7 @@ def analyze():
         # Store analysis result in SQLite database
         save_analysis(
             analysis_id=file_uuid,
-            resume_filename=uploaded_file.filename,
+            resume_filename=resume_filename,
             company_name=selected_company,
             job_description=job_description,
             results_dict=analysis_payload

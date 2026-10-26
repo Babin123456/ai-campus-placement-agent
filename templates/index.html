@@ -63,14 +63,34 @@
 
             <form id="analysisForm" action="/analyze" method="POST" enctype="multipart/form-data">
               
-              <!-- PDF Resume Upload Area -->
+              <!-- Resume Input Selector (Tabs) -->
               <div class="mb-4">
-                <label class="form-label fw-semibold text-secondary">1. Upload Resume (PDF Only)</label>
-                <div class="upload-area" id="uploadArea">
-                  <i class="fa-solid fa-file-pdf upload-icon"></i>
-                  <p class="mb-1 fw-medium text-dark">Drag and drop your PDF resume here, or click to browse</p>
-                  <span class="text-muted small">Supports text-based PDF format</span>
-                  <input type="file" name="resume" id="resumeInput" accept=".pdf" class="d-none">
+                <label class="form-label fw-semibold text-secondary">1. Provide Resume</label>
+                <ul class="nav nav-pills nav-fill mb-2" id="resumeTab" role="tablist">
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link active py-2" id="pdf-tab" data-bs-toggle="pill" data-bs-target="#pdf-pane" type="button" role="tab">
+                      <i class="fa-solid fa-file-pdf me-1"></i> Upload PDF
+                    </button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link py-2" id="text-tab" data-bs-toggle="pill" data-bs-target="#text-pane" type="button" role="tab">
+                      <i class="fa-solid fa-file-lines me-1"></i> Paste Text
+                    </button>
+                  </li>
+                </ul>
+
+                <div class="tab-content">
+                  <div class="tab-pane fade show active" id="pdf-pane" role="tabpanel">
+                    <div class="upload-area" id="uploadArea">
+                      <i class="fa-solid fa-file-pdf upload-icon"></i>
+                      <p class="mb-1 fw-medium text-dark">Drag and drop your PDF resume here, or click to browse</p>
+                      <span class="text-muted small">Supports text-based PDF format</span>
+                      <input type="file" name="resume" id="resumeInput" accept=".pdf" class="d-none">
+                    </div>
+                  </div>
+                  <div class="tab-pane fade" id="text-pane" role="tabpanel">
+                    <textarea name="resume_text" id="resumeTextInput" rows="5" class="form-control rounded-3" placeholder="Paste your complete resume text here (education, skills, projects, experience)..."></textarea>
+                  </div>
                 </div>
               </div>
 
