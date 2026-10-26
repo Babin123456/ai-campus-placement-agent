@@ -39,7 +39,7 @@
               <i class="fa-solid fa-comments text-primary me-2"></i> Mock Interview Simulator
             </h4>
             <span class="badge bg-light text-primary border rounded-pill py-2 px-3 small">
-              Target: {{ interview.questions[0].question|length|string|replace('0','')|truncate(6, True, '') or 'Placement' }}
+              Target: {{ company_name|default('Placement', true) }}
             </span>
           </div>
           
