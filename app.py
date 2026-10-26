@@ -1,5 +1,6 @@
 import os
 import uuid
+import json
 import logging
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from werkzeug.utils import secure_filename
@@ -86,6 +87,23 @@ def index() -> str:
     """
     companies_list = ["Google", "Microsoft", "Amazon", "TCS", "Infosys", "Accenture", "Capgemini", "Wipro"]
     return render_template("index.html", companies=companies_list)
+
+
+@app.route("/api/company/<company_name>")
+def get_company_profile(company_name: str):
+    """
+    Returns company hiring details from data/companies.json for the preview explorer modal.
+    """
+    companies_file = config.BASE_DIR / "data" / "companies.json"
+    try:
+        if companies_file.exists():
+            with open(companies_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if company_name in data:
+                    return jsonify({"success": True, "company": company_name, "details": data[company_name]})
+    except Exception as e:
+        logger.error(f"Error fetching company details for {company_name}: {e}")
+    return jsonify({"success": False, "error": f"Profile for '{company_name}' not found."}), 404
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
