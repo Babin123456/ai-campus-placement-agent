@@ -183,6 +183,62 @@ function initMockInterview() {
   const answerInput = document.getElementById("answerInput");
   const submitBtn = chatForm.querySelector("button[type='submit']");
   const evaluationPanel = document.getElementById("evaluationPanel");
+  const btnMic = document.getElementById("btnMic");
+
+  // Voice recording / speech recognition integration
+  if (btnMic) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      btnMic.title = "Speech recognition not supported in this browser.";
+      btnMic.style.opacity = "0.5";
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      let isRecording = false;
+
+      btnMic.addEventListener("click", () => {
+        if (!isRecording) {
+          try {
+            recognition.start();
+            isRecording = true;
+            btnMic.classList.remove("btn-outline-secondary");
+            btnMic.classList.add("btn-danger");
+            btnMic.innerHTML = '<i class="fa-solid fa-circle-stop"></i>';
+          } catch (e) {
+            console.warn(e);
+          }
+        } else {
+          recognition.stop();
+          isRecording = false;
+          btnMic.classList.remove("btn-danger");
+          btnMic.classList.add("btn-outline-secondary");
+          btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        }
+      });
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          answerInput.value = answerInput.value ? `${answerInput.value} ${transcript}` : transcript;
+        }
+      };
+
+      recognition.onend = () => {
+        isRecording = false;
+        btnMic.classList.remove("btn-danger");
+        btnMic.classList.add("btn-outline-secondary");
+        btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      };
+
+      recognition.onerror = () => {
+        isRecording = false;
+        btnMic.classList.remove("btn-danger");
+        btnMic.classList.add("btn-outline-secondary");
+        btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      };
+    }
+  }
 
   chatForm.addEventListener("submit", async (e) => {
     e.preventDefault();
