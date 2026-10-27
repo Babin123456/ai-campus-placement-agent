@@ -1,0 +1,47 @@
+name: Auto-label new issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  add-nsoc26-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure nsoc26 label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABEL: nsoc26
+        run: |
+          set -euo pipefail
+
+          labels="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/labels?per_page=100" --jq '.[].name')"
+          if ! grep -Fxq -- "$LABEL" <<< "$labels"; then
+            if ! gh api --method POST "repos/${GITHUB_REPOSITORY}/labels" \
+              -f "name=${LABEL}" \
+              -f "color=1D76DB" \
+              -f "description=Automatically applied to newly opened issues."; then
+              labels="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/labels?per_page=100" --jq '.[].name')"
+              if ! grep -Fxq -- "$LABEL" <<< "$labels"; then
+                echo "::error::Could not create the ${LABEL} label."
+                exit 1
+              fi
+              echo "The ${LABEL} label was created by another workflow run."
+            fi
+          else
+            echo "The ${LABEL} label already exists."
+          fi
+
+      - name: Apply nsoc26 label to the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          LABEL: nsoc26
+        run: |
+          set -euo pipefail
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/labels" \
+            -f "labels[]=${LABEL}"
