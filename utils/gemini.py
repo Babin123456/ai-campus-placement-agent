@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
@@ -19,6 +20,18 @@ def get_gemini_client() -> genai.Client:
         logger.error("GEMINI_API_KEY is not configured in .env file.")
         raise ValueError("Missing Gemini API Key. Please set GEMINI_API_KEY in your .env file.")
     return genai.Client(api_key=api_key)
+
+def _extract_json_string(text: str) -> str:
+    """
+    Cleans markdown code fences and returns the isolated JSON string.
+    """
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        cleaned = cleaned.strip()
+    return cleaned
+
 
 def generate_json_response(system_instruction: str, prompt: str) -> dict:
     """
@@ -48,7 +61,8 @@ def generate_json_response(system_instruction: str, prompt: str) -> dict:
             raise ValueError("Gemini returned an empty response. Please verify your inputs or try again.")
             
         logger.info("Successfully received Gemini response text. Attempting JSON parsing...")
-        parsed_data = json.loads(raw_text.strip())
+        cleaned_json = _extract_json_string(raw_text)
+        parsed_data = json.loads(cleaned_json)
         return parsed_data
         
     except APIError as e:

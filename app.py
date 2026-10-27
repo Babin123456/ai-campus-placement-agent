@@ -1,5 +1,6 @@
 import os
 import uuid
+import json
 import logging
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from werkzeug.utils import secure_filename
@@ -7,6 +8,7 @@ from werkzeug.utils import secure_filename
 import config
 from utils.database import (
     init_db,
+    get_db_connection,
     save_analysis,
     get_analysis,
     create_interview_session,
@@ -28,6 +30,13 @@ logger = logging.getLogger(__name__)
 # Initialize Flask application
 app = Flask(__name__)
 app.secret_key = config.FLASK_SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
+
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    flash("Uploaded file exceeds the 16MB size limit. Please upload a smaller PDF.", "error")
+    return redirect(url_for("index"))
 
 # Ensure directories exist
 os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
@@ -43,6 +52,34 @@ except Exception as db_err:
 coordinator_agent = CoordinatorAgent()
 live_interview_agent = InterviewAgent()
 
+
+@app.route("/api/health")
+@app.route("/health")
+def health_check():
+    """
+    Health check endpoint verifying application uptime and database connectivity.
+    """
+    try:
+        conn = get_db_connection()
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+        db_status = "connected"
+    except Exception as db_err:
+        logger.error(f"Healthcheck database error: {str(db_err)}")
+        db_status = f"unhealthy: {str(db_err)}"
+
+    status_code = 200 if db_status == "connected" else 503
+    return (
+        jsonify(
+            {
+                "status": "healthy" if status_code == 200 else "degraded",
+                "version": config.__version__,
+                "database": db_status,
+            }
+        ),
+        status_code,
+    )
+
 @app.route("/")
 def index() -> str:
     """
@@ -51,6 +88,23 @@ def index() -> str:
     companies_list = ["Google", "Microsoft", "Amazon", "TCS", "Infosys", "Accenture", "Capgemini", "Wipro"]
     return render_template("index.html", companies=companies_list)
 
+
+@app.route("/api/company/<company_name>")
+def get_company_profile(company_name: str):
+    """
+    Returns company hiring details from data/companies.json for the preview explorer modal.
+    """
+    companies_file = config.BASE_DIR / "data" / "companies.json"
+    try:
+        if companies_file.exists():
+            with open(companies_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if company_name in data:
+                    return jsonify({"success": True, "company": company_name, "details": data[company_name]})
+    except Exception as e:
+        logger.error(f"Error fetching company details for {company_name}: {e}")
+    return jsonify({"success": False, "error": f"Profile for '{company_name}' not found."}), 404
+
 @app.route("/analyze", methods=["POST"])
 def analyze():
     """
@@ -58,33 +112,30 @@ def analyze():
     persists result states, and redirects to candidate dashboards.
     """
     try:
-        # Validate file upload presence
-        if "resume" not in request.files:
-            flash("No file key detected in upload form.", "error")
-            return redirect(url_for("index"))
+        pasted_text = request.form.get("resume_text", "").strip()
+        uploaded_file = request.files.get("resume")
+        file_uuid = str(uuid.uuid4())
+        resume_filename = "pasted_resume.txt"
 
-        uploaded_file = request.files["resume"]
-        if uploaded_file.filename == "":
-            flash("No resume file was selected. Please choose a PDF file.", "error")
-            return redirect(url_for("index"))
-
-        # Verify it's a PDF extension
-        if not uploaded_file.filename.lower().endswith('.pdf'):
-            flash("Invalid file format. Only PDF resumes are supported.", "error")
+        if pasted_text:
+            extracted_resume_text = pasted_text
+            resume_filename = "Pasted_Resume.txt"
+        elif uploaded_file and uploaded_file.filename != "":
+            if not uploaded_file.filename.lower().endswith(".pdf"):
+                flash("Invalid file format. Only PDF resumes are supported.", "error")
+                return redirect(url_for("index"))
+            resume_filename = uploaded_file.filename
+            safe_name = secure_filename(f"{file_uuid}_{uploaded_file.filename}")
+            saved_file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
+            uploaded_file.save(saved_file_path)
+            logger.info(f"Uploaded resume saved locally at: {saved_file_path}")
+            extracted_resume_text = extract_text_from_pdf(saved_file_path)
+        else:
+            flash("Please upload a PDF resume or paste your resume text.", "error")
             return redirect(url_for("index"))
 
         selected_company = request.form.get("company", "General").strip()
         job_description = request.form.get("job_description", "").strip()
-
-        # Save the file to local upload folders
-        file_uuid = str(uuid.uuid4())
-        safe_name = secure_filename(f"{file_uuid}_{uploaded_file.filename}")
-        saved_file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
-        uploaded_file.save(saved_file_path)
-        logger.info(f"Uploaded resume saved locally at: {saved_file_path}")
-
-        # Parse text content from the PDF
-        extracted_resume_text = extract_text_from_pdf(saved_file_path)
 
         # Execute coordinated multi-agent analysis via single Gemini call
         analysis_payload = coordinator_agent.analyze(
@@ -96,7 +147,7 @@ def analyze():
         # Store analysis result in SQLite database
         save_analysis(
             analysis_id=file_uuid,
-            resume_filename=uploaded_file.filename,
+            resume_filename=resume_filename,
             company_name=selected_company,
             job_description=job_description,
             results_dict=analysis_payload
@@ -170,7 +221,8 @@ def interview(analysis_id: str) -> str:
     return render_template(
         "interview.html",
         interview=interview_session,
-        analysis_id=analysis_id
+        analysis_id=analysis_id,
+        company_name=analysis_record.get("company_name", "General"),
     )
 
 @app.route("/interview/<analysis_id>/submit", methods=["POST"])
@@ -277,6 +329,23 @@ def export_interview_json(analysis_id: str):
         f"attachment; filename=Mock_Interview_{safe_company}_{analysis_id[:8]}.json"
     )
     return response
+
+
+@app.route("/certificate/<analysis_id>")
+def certificate(analysis_id: str):
+    """
+    Renders printable placement readiness completion certificate.
+    """
+    analysis_record = get_analysis(analysis_id)
+    if not analysis_record:
+        flash("The requested placement analysis report could not be found.", "error")
+        return redirect(url_for("index"))
+
+    return render_template(
+        "certificate.html",
+        analysis=analysis_record,
+        analysis_id=analysis_id,
+    )
 
 @app.route("/download/<analysis_id>")
 def download_pdf_report(analysis_id: str):
