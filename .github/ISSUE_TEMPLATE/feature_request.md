@@ -25,17 +25,3 @@ Describe any alternative solutions or features you've considered.
 ## Additional Context
 
 Add any other context, mockups, or screenshots about the feature request here.
-
-## Priority
-
-- [ ] Low priority
-- [ ] Medium priority
-- [ ] High priority
-- [ ] Critical
-
-## Implementation Difficulty
-
-- [ ] Easy (1-2 hours)
-- [ ] Medium (1-2 days)
-- [ ] Hard (1 week+)
-- [ ] Unknown

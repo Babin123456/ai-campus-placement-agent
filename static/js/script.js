@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initFormUpload();
   initCircularProgress();
   initMockInterview();
+  initCompanyExplorer();
   initRoadmapTracker();
 });
 
@@ -39,6 +40,48 @@ function initRoadmapTracker() {
     });
 
     updateProgress();
+  });
+}
+
+function initCompanyExplorer() {
+  const btn = document.getElementById("btnExploreCompany");
+  const select = document.getElementById("companySelect");
+  const modalEl = document.getElementById("companyModal");
+  const modalBody = document.getElementById("companyModalBody");
+  if (!btn || !select || !modalEl) return;
+
+  btn.addEventListener("click", async () => {
+    const company = select.value;
+    if (!company || company === "General") {
+      alert("Please select a specific company (e.g. Google, Microsoft, Amazon) to explore its hiring guide.");
+      return;
+    }
+    const bsModal = new bootstrap.Modal(modalEl);
+    modalBody.innerHTML = '<div class="text-center py-4"><span class="spinner-border text-primary" role="status"></span></div>';
+    bsModal.show();
+
+    try {
+      const res = await fetch(`/api/company/${encodeURIComponent(company)}`);
+      const data = await res.json();
+      if (data.success && data.details) {
+        const d = data.details;
+        modalBody.innerHTML = `
+          <h4 class="fw-bold text-primary mb-3">${data.company}</h4>
+          <p class="text-secondary">${d.overview || ""}</p>
+          <hr/>
+          <h6 class="fw-bold"><i class="fa-solid fa-list-check text-primary me-2"></i>Hiring Process:</h6>
+          <p class="small text-muted mb-3">${d.hiring_process || "N/A"}</p>
+          <h6 class="fw-bold"><i class="fa-solid fa-laptop-code text-primary me-2"></i>Technical Rounds:</h6>
+          <p class="small text-muted mb-3">${d.technical_rounds || "N/A"}</p>
+          <h6 class="fw-bold"><i class="fa-solid fa-lightbulb text-warning me-2"></i>Preparation Tips:</h6>
+          <div class="alert alert-light border small text-dark">${d.prep_tips || "N/A"}</div>
+        `;
+      } else {
+        modalBody.innerHTML = `<div class="alert alert-warning">No details found for ${company}.</div>`;
+      }
+    } catch (err) {
+      modalBody.innerHTML = '<div class="alert alert-danger">Error loading company details.</div>';
+    }
   });
 }
 
@@ -97,8 +140,12 @@ function initFormUpload() {
 
   // Intercept form submit to show animated Agent Progress panel
   uploadForm.addEventListener("submit", (e) => {
-    if (!fileInput.files || fileInput.files.length === 0) {
-      alert("Please upload a PDF resume first.");
+    const textInput = document.getElementById("resumeTextInput");
+    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+    const hasText = textInput && textInput.value.trim().length > 0;
+
+    if (!hasFile && !hasText) {
+      alert("Please upload a PDF resume or paste your resume text first.");
       e.preventDefault();
       return;
     }
@@ -172,6 +219,62 @@ function initMockInterview() {
   const answerInput = document.getElementById("answerInput");
   const submitBtn = chatForm.querySelector("button[type='submit']");
   const evaluationPanel = document.getElementById("evaluationPanel");
+  const btnMic = document.getElementById("btnMic");
+
+  // Voice recording / speech recognition integration
+  if (btnMic) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      btnMic.title = "Speech recognition not supported in this browser.";
+      btnMic.style.opacity = "0.5";
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      let isRecording = false;
+
+      btnMic.addEventListener("click", () => {
+        if (!isRecording) {
+          try {
+            recognition.start();
+            isRecording = true;
+            btnMic.classList.remove("btn-outline-secondary");
+            btnMic.classList.add("btn-danger");
+            btnMic.innerHTML = '<i class="fa-solid fa-circle-stop"></i>';
+          } catch (e) {
+            console.warn(e);
+          }
+        } else {
+          recognition.stop();
+          isRecording = false;
+          btnMic.classList.remove("btn-danger");
+          btnMic.classList.add("btn-outline-secondary");
+          btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        }
+      });
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          answerInput.value = answerInput.value ? `${answerInput.value} ${transcript}` : transcript;
+        }
+      };
+
+      recognition.onend = () => {
+        isRecording = false;
+        btnMic.classList.remove("btn-danger");
+        btnMic.classList.add("btn-outline-secondary");
+        btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      };
+
+      recognition.onerror = () => {
+        isRecording = false;
+        btnMic.classList.remove("btn-danger");
+        btnMic.classList.add("btn-outline-secondary");
+        btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      };
+    }
+  }
 
   chatForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -287,8 +390,9 @@ function initMockInterview() {
     document.getElementById("techScore").innerText = `${evaluation.technical_accuracy}%`;
     document.getElementById("techBar").style.width = `${evaluation.technical_accuracy}%`;
 
-    const progPercent = Math.round((totalAnswered / 15) * 100);
-    document.getElementById("interviewProgressText").innerText = `${totalAnswered}/15 Questions Answered (${progPercent}%)`;
+    const totalQuestions = parseInt(chatForm.getAttribute("data-total-questions")) || 15;
+    const progPercent = totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0;
+    document.getElementById("interviewProgressText").innerText = `${totalAnswered}/${totalQuestions} Questions Answered (${progPercent}%)`;
     document.getElementById("interviewProgressBar").style.width = `${progPercent}%`;
   }
 }

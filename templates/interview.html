@@ -39,7 +39,7 @@
               <i class="fa-solid fa-comments text-primary me-2"></i> Mock Interview Simulator
             </h4>
             <span class="badge bg-light text-primary border rounded-pill py-2 px-3 small">
-              Target: {{ interview.questions[0].question|length|string|replace('0','')|truncate(6, True, '') or 'Placement' }}
+              Target: {{ company_name|default('Placement', true) }}
             </span>
           </div>
           
@@ -90,9 +90,12 @@
 
           <!-- Answer Input Form -->
           {% if not interview.completed %}
-            <form id="chatForm" data-question-index="{{ interview.current_question_index }}" data-analysis-id="{{ analysis_id }}">
+            <form id="chatForm" data-question-index="{{ interview.current_question_index }}" data-analysis-id="{{ analysis_id }}" data-total-questions="{{ interview.questions|length }}">
               <div class="input-group">
                 <textarea id="answerInput" class="form-control rounded-start-3" rows="3" placeholder="Type your answer here... Be descriptive and structured (STAR method)."></textarea>
+                <button class="btn btn-outline-secondary px-3" type="button" id="btnMic" title="Voice answering (Speech-to-Text)">
+                  <i class="fa-solid fa-microphone"></i>
+                </button>
                 <button class="btn btn-custom-primary px-4 rounded-end-3" type="submit">Submit Answer</button>
               </div>
               <small class="text-muted d-block mt-2">Take your time. You can write multiple sentences. We grade technical correctness, communication structure, and confidence indicators.</small>
