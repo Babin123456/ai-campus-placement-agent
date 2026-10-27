@@ -19,7 +19,15 @@
       <a class="navbar-brand navbar-brand-custom" href="/">
         <i class="fa-solid fa-graduation-cap"></i> AI Campus <span>Placement Agent</span>
       </a>
-      <div class="d-flex gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm rounded-pill dropdown-toggle px-3" type="button" id="recentAnalysesBtn" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fa-solid fa-clock-rotate-left me-1"></i> Recent
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 p-2" id="recentAnalysesList" aria-labelledby="recentAnalysesBtn" style="min-width: 250px;">
+            <li class="dropdown-item text-muted small text-center py-2">No recent analyses found</li>
+          </ul>
+        </div>
         <a href="/" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
           <i class="fa-solid fa-arrow-left me-1"></i> New Analysis
         </a>
@@ -34,7 +42,7 @@
   </nav>
 
   <!-- Dashboard Content -->
-  <main class="container py-5 fade-in">
+  <main class="container py-5 fade-in" id="dashboardContainer" data-analysis-id="{{ analysis_id }}" data-company="{{ analysis.company_name }}" data-date="{{ analysis.created_at }}">
     
     <!-- Top Summary Card -->
     <div class="card glass-card p-4 mb-4 border-0">
@@ -268,37 +276,46 @@
       <div class="timeline-wrapper">
         {% for w in analysis.results.learning_roadmap %}
           <div class="timeline-node">
-            <div class="card border-0 bg-light p-4 rounded-4 shadow-sm">
-              <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+            <div class="card border-0 bg-light p-4 rounded-4 shadow-sm week-card" data-week-id="{{ w.week|replace(' ', '_') }}">
+              <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
                 <h5 class="fw-bold mb-0 text-primary">{{ w.week }}</h5>
                 <span class="badge bg-primary text-white rounded-pill py-2 px-3">{{ w.estimated_hours }} Hours recommended</span>
+              </div>
+              <div class="week-progress-container mb-3">
+                <div class="d-flex justify-content-between small text-secondary mb-1">
+                  <span>Week Progress</span>
+                  <span class="week-progress-label fw-bold text-success">0%</span>
+                </div>
+                <div class="progress rounded-pill" style="height: 6px;">
+                  <div class="progress-bar bg-success week-progress-bar" style="width: 0%"></div>
+                </div>
               </div>
               <div class="row">
                 <div class="col-md-6 mb-3 mb-md-0">
                   <h6 class="fw-semibold text-secondary"><i class="fa-solid fa-book-open me-2 text-primary"></i> Topics to Learn</h6>
-                  <ul class="mb-3 small">
+                  <ul class="mb-3 small list-unstyled">
                     {% for topic in w.topics %}
-                      <li>{{ topic }}</li>
+                      <li class="mb-1"><label class="form-check-label d-flex align-items-start"><input type="checkbox" class="form-check-input roadmap-task-check me-2 flex-shrink-0 mt-1" data-analysis-id="{{ analysis_id }}" data-task-id="{{ w.week|replace(' ', '_') }}_top_{{ loop.index }}"><span>{{ topic }}</span></label></li>
                     {% endfor %}
                   </ul>
                   <h6 class="fw-semibold text-secondary"><i class="fa-solid fa-code me-2 text-primary"></i> Coding Practice Tasks</h6>
-                  <ul class="mb-0 small">
+                  <ul class="mb-0 small list-unstyled">
                     {% for code in w.coding_practice %}
-                      <li>{{ code }}</li>
+                      <li class="mb-1"><label class="form-check-label d-flex align-items-start"><input type="checkbox" class="form-check-input roadmap-task-check me-2 flex-shrink-0 mt-1" data-analysis-id="{{ analysis_id }}" data-task-id="{{ w.week|replace(' ', '_') }}_code_{{ loop.index }}"><span>{{ code }}</span></label></li>
                     {% endfor %}
                   </ul>
                 </div>
                 <div class="col-md-6">
                   <h6 class="fw-semibold text-secondary"><i class="fa-solid fa-laptop-code me-2 text-primary"></i> Micro Projects</h6>
-                  <ul class="mb-3 small">
+                  <ul class="mb-3 small list-unstyled">
                     {% for project in w.mini_projects %}
-                      <li>{{ project }}</li>
+                      <li class="mb-1"><label class="form-check-label d-flex align-items-start"><input type="checkbox" class="form-check-input roadmap-task-check me-2 flex-shrink-0 mt-1" data-analysis-id="{{ analysis_id }}" data-task-id="{{ w.week|replace(' ', '_') }}_proj_{{ loop.index }}"><span>{{ project }}</span></label></li>
                     {% endfor %}
                   </ul>
                   <h6 class="fw-semibold text-secondary"><i class="fa-solid fa-circle-question me-2 text-primary"></i> Interview Prep Questions</h6>
-                  <ul class="mb-0 small">
+                  <ul class="mb-0 small list-unstyled">
                     {% for question in w.interview_questions %}
-                      <li>{{ question }}</li>
+                      <li class="mb-1"><label class="form-check-label d-flex align-items-start"><input type="checkbox" class="form-check-input roadmap-task-check me-2 flex-shrink-0 mt-1" data-analysis-id="{{ analysis_id }}" data-task-id="{{ w.week|replace(' ', '_') }}_q_{{ loop.index }}"><span>{{ question }}</span></label></li>
                     {% endfor %}
                   </ul>
                 </div>

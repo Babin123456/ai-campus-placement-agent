@@ -1,6 +1,7 @@
 // Frontend interactions - AI Campus Placement Agent
 
 document.addEventListener("DOMContentLoaded", () => {
+  initRecentAnalyses();
   initFormUpload();
   initCircularProgress();
   initMockInterview();

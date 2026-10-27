@@ -302,6 +302,35 @@ def submit_interview_answer(analysis_id: str):
         return jsonify({"error": f"Internal process error evaluating response: {str(e)}"}), 500
 
 
+@app.route("/interview/<analysis_id>/export")
+def export_interview_json(analysis_id: str):
+    """
+    Exports the mock interview Q&A transcript and dynamic evaluations as a JSON download.
+    """
+    session = get_interview_session(analysis_id)
+    analysis_record = get_analysis(analysis_id)
+    if not session:
+        flash("Interview session not found.", "error")
+        return redirect(url_for("index"))
+
+    company_name = analysis_record.get("company_name", "General") if analysis_record else "General"
+    export_data = {
+        "analysis_id": analysis_id,
+        "company_name": company_name,
+        "completed": bool(session.get("completed", 0)),
+        "total_questions": len(session.get("questions", [])),
+        "answers_recorded": len(session.get("answers", [])),
+        "transcript": session.get("answers", []),
+    }
+
+    response = jsonify(export_data)
+    safe_company = "".join(c for c in company_name if c.isalnum() or c in ("-", "_"))
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=Mock_Interview_{safe_company}_{analysis_id[:8]}.json"
+    )
+    return response
+
+
 @app.route("/certificate/<analysis_id>")
 def certificate(analysis_id: str):
     """
