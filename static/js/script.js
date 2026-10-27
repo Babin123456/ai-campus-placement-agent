@@ -6,49 +6,42 @@ document.addEventListener("DOMContentLoaded", () => {
   initCircularProgress();
   initMockInterview();
   initCompanyExplorer();
+  initRoadmapTracker();
 });
 
-function initRecentAnalyses() {
-  const listEl = document.getElementById("recentAnalysesList");
-  if (!listEl) return;
+function initRoadmapTracker() {
+  const weekCards = document.querySelectorAll(".week-card");
+  if (!weekCards.length) return;
 
-  const dash = document.getElementById("dashboardContainer");
-  let recents = [];
-  try {
-    recents = JSON.parse(localStorage.getItem("recent_placement_analyses") || "[]");
-  } catch (e) {
-    recents = [];
-  }
+  weekCards.forEach((card) => {
+    const checkboxes = card.querySelectorAll(".roadmap-task-check");
+    const progressBar = card.querySelector(".week-progress-bar");
+    const progressLabel = card.querySelector(".week-progress-label");
+    if (!checkboxes.length) return;
 
-  if (dash) {
-    const aId = dash.getAttribute("data-analysis-id");
-    const company = dash.getAttribute("data-company") || "General";
-    const dateStr = dash.getAttribute("data-date") || new Date().toLocaleDateString();
-
-    if (aId) {
-      recents = recents.filter((r) => r.id !== aId);
-      recents.unshift({ id: aId, company: company, date: dateStr });
-      if (recents.length > 5) recents = recents.slice(0, 5);
-      localStorage.setItem("recent_placement_analyses", JSON.stringify(recents));
+    function updateProgress() {
+      let checkedCount = 0;
+      checkboxes.forEach((cb) => {
+        const key = `rm_${cb.getAttribute("data-analysis-id")}_${cb.getAttribute("data-task-id")}`;
+        if (cb.checked) checkedCount++;
+      });
+      const pct = Math.round((checkedCount / checkboxes.length) * 100);
+      if (progressBar) progressBar.style.width = `${pct}%`;
+      if (progressLabel) progressLabel.innerText = `${pct}% (${checkedCount}/${checkboxes.length})`;
     }
-  }
 
-  if (recents.length > 0) {
-    listEl.innerHTML = "";
-    recents.forEach((item) => {
-      const li = document.createElement("li");
-      li.innerHTML = `
-        <a class="dropdown-item d-flex justify-content-between align-items-center py-2 rounded-2" href="/dashboard/${item.id}">
-          <div>
-            <div class="fw-semibold text-dark small">${item.company}</div>
-            <div class="text-muted" style="font-size: 0.75rem;">ID: ${item.id.slice(0, 8)}...</div>
-          </div>
-          <i class="fa-solid fa-chevron-right text-muted small ms-2"></i>
-        </a>
-      `;
-      listEl.appendChild(li);
+    checkboxes.forEach((cb) => {
+      const key = `rm_${cb.getAttribute("data-analysis-id")}_${cb.getAttribute("data-task-id")}`;
+      cb.checked = localStorage.getItem(key) === "1";
+
+      cb.addEventListener("change", () => {
+        localStorage.setItem(key, cb.checked ? "1" : "0");
+        updateProgress();
+      });
     });
-  }
+
+    updateProgress();
+  });
 }
 
 function initCompanyExplorer() {
