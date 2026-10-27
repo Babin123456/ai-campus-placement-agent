@@ -37,7 +37,7 @@
   </nav>
 
   <!-- Dashboard Content -->
-  <main class="container py-5 fade-in">
+  <main class="container py-5 fade-in" id="dashboardContainer" data-analysis-id="{{ analysis_id }}" data-company="{{ analysis.company_name }}" data-date="{{ analysis.created_at }}">
     
     <!-- Top Summary Card -->
     <div class="card glass-card p-4 mb-4 border-0">
@@ -221,9 +221,20 @@
 
     <!-- Skill Gap Analysis Table -->
     <div class="card glass-card p-4 border-0 mb-4">
-      <h4 class="fw-bold mb-4"><i class="fa-solid fa-triangle-exclamation text-primary me-2"></i> Skill Gap Analysis</h4>
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <h4 class="fw-bold mb-0"><i class="fa-solid fa-triangle-exclamation text-primary me-2"></i> Skill Gap Analysis</h4>
+        <div class="d-flex flex-wrap gap-2">
+          <input type="text" id="skillSearchInput" class="form-control form-control-sm rounded-pill px-3" style="max-width: 220px;" placeholder="Search skills...">
+          <select id="skillPriorityFilter" class="form-select form-select-sm rounded-pill" style="width: auto;">
+            <option value="ALL">All Priorities</option>
+            <option value="High">High Priority</option>
+            <option value="Medium">Medium Priority</option>
+            <option value="Low">Low Priority</option>
+          </select>
+        </div>
+      </div>
       <div class="table-responsive">
-        <table class="table table-hover align-middle">
+        <table class="table table-hover align-middle" id="skillGapTable">
           <thead class="table-light">
             <tr>
               <th>Missing Skill</th>
@@ -236,7 +247,7 @@
           </thead>
           <tbody>
             {% for gap in analysis.results.skill_gap %}
-              <tr>
+              <tr data-skill="{{ gap.skill|lower }}" data-priority="{{ gap.priority }}">
                 <td><b class="text-primary">{{ gap.skill }}</b></td>
                 <td><span class="badge bg-light text-dark border">{{ gap.importance }}</span></td>
                 <td>{{ gap.learning_time }}</td>
@@ -260,37 +271,46 @@
       <div class="timeline-wrapper">
         {% for w in analysis.results.learning_roadmap %}
           <div class="timeline-node">
-            <div class="card border-0 bg-light p-4 rounded-4 shadow-sm">
-              <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+            <div class="card border-0 bg-light p-4 rounded-4 shadow-sm week-card" data-week-id="{{ w.week|replace(' ', '_') }}">
+              <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
                 <h5 class="fw-bold mb-0 text-primary">{{ w.week }}</h5>
                 <span class="badge bg-primary text-white rounded-pill py-2 px-3">{{ w.estimated_hours }} Hours recommended</span>
+              </div>
+              <div class="week-progress-container mb-3">
+                <div class="d-flex justify-content-between small text-secondary mb-1">
+                  <span>Week Progress</span>
+                  <span class="week-progress-label fw-bold text-success">0%</span>
+                </div>
+                <div class="progress rounded-pill" style="height: 6px;">
+                  <div class="progress-bar bg-success week-progress-bar" style="width: 0%"></div>
+                </div>
               </div>
               <div class="row">
                 <div class="col-md-6 mb-3 mb-md-0">
                   <h6 class="fw-semibold text-secondary"><i class="fa-solid fa-book-open me-2 text-primary"></i> Topics to Learn</h6>
-                  <ul class="mb-3 small">
+                  <ul class="mb-3 small list-unstyled">
                     {% for topic in w.topics %}
-                      <li>{{ topic }}</li>
+                      <li class="mb-1"><label class="form-check-label d-flex align-items-start"><input type="checkbox" class="form-check-input roadmap-task-check me-2 flex-shrink-0 mt-1" data-analysis-id="{{ analysis_id }}" data-task-id="{{ w.week|replace(' ', '_') }}_top_{{ loop.index }}"><span>{{ topic }}</span></label></li>
                     {% endfor %}
                   </ul>
                   <h6 class="fw-semibold text-secondary"><i class="fa-solid fa-code me-2 text-primary"></i> Coding Practice Tasks</h6>
-                  <ul class="mb-0 small">
+                  <ul class="mb-0 small list-unstyled">
                     {% for code in w.coding_practice %}
-                      <li>{{ code }}</li>
+                      <li class="mb-1"><label class="form-check-label d-flex align-items-start"><input type="checkbox" class="form-check-input roadmap-task-check me-2 flex-shrink-0 mt-1" data-analysis-id="{{ analysis_id }}" data-task-id="{{ w.week|replace(' ', '_') }}_code_{{ loop.index }}"><span>{{ code }}</span></label></li>
                     {% endfor %}
                   </ul>
                 </div>
                 <div class="col-md-6">
                   <h6 class="fw-semibold text-secondary"><i class="fa-solid fa-laptop-code me-2 text-primary"></i> Micro Projects</h6>
-                  <ul class="mb-3 small">
+                  <ul class="mb-3 small list-unstyled">
                     {% for project in w.mini_projects %}
-                      <li>{{ project }}</li>
+                      <li class="mb-1"><label class="form-check-label d-flex align-items-start"><input type="checkbox" class="form-check-input roadmap-task-check me-2 flex-shrink-0 mt-1" data-analysis-id="{{ analysis_id }}" data-task-id="{{ w.week|replace(' ', '_') }}_proj_{{ loop.index }}"><span>{{ project }}</span></label></li>
                     {% endfor %}
                   </ul>
                   <h6 class="fw-semibold text-secondary"><i class="fa-solid fa-circle-question me-2 text-primary"></i> Interview Prep Questions</h6>
-                  <ul class="mb-0 small">
+                  <ul class="mb-0 small list-unstyled">
                     {% for question in w.interview_questions %}
-                      <li>{{ question }}</li>
+                      <li class="mb-1"><label class="form-check-label d-flex align-items-start"><input type="checkbox" class="form-check-input roadmap-task-check me-2 flex-shrink-0 mt-1" data-analysis-id="{{ analysis_id }}" data-task-id="{{ w.week|replace(' ', '_') }}_q_{{ loop.index }}"><span>{{ question }}</span></label></li>
                     {% endfor %}
                   </ul>
                 </div>

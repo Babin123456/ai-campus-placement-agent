@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initCircularProgress();
   initMockInterview();
   initCompanyExplorer();
+  initSkillGapFilter();
 });
 
 function initThemeToggle() {
