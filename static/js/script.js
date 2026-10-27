@@ -6,42 +6,37 @@ document.addEventListener("DOMContentLoaded", () => {
   initCircularProgress();
   initMockInterview();
   initCompanyExplorer();
-  initRoadmapTracker();
+  initSkillGapFilter();
 });
 
-function initRoadmapTracker() {
-  const weekCards = document.querySelectorAll(".week-card");
-  if (!weekCards.length) return;
+function initSkillGapFilter() {
+  const searchInput = document.getElementById("skillSearchInput");
+  const priorityFilter = document.getElementById("skillPriorityFilter");
+  const table = document.getElementById("skillGapTable");
+  if (!table || !searchInput || !priorityFilter) return;
 
-  weekCards.forEach((card) => {
-    const checkboxes = card.querySelectorAll(".roadmap-task-check");
-    const progressBar = card.querySelector(".week-progress-bar");
-    const progressLabel = card.querySelector(".week-progress-label");
-    if (!checkboxes.length) return;
+  const rows = table.querySelectorAll("tbody tr");
 
-    function updateProgress() {
-      let checkedCount = 0;
-      checkboxes.forEach((cb) => {
-        const key = `rm_${cb.getAttribute("data-analysis-id")}_${cb.getAttribute("data-task-id")}`;
-        if (cb.checked) checkedCount++;
-      });
-      const pct = Math.round((checkedCount / checkboxes.length) * 100);
-      if (progressBar) progressBar.style.width = `${pct}%`;
-      if (progressLabel) progressLabel.innerText = `${pct}% (${checkedCount}/${checkboxes.length})`;
-    }
+  function applyFilter() {
+    const q = searchInput.value.toLowerCase().trim();
+    const p = priorityFilter.value;
 
-    checkboxes.forEach((cb) => {
-      const key = `rm_${cb.getAttribute("data-analysis-id")}_${cb.getAttribute("data-task-id")}`;
-      cb.checked = localStorage.getItem(key) === "1";
+    rows.forEach((row) => {
+      const skillName = row.getAttribute("data-skill") || "";
+      const priority = row.getAttribute("data-priority") || "";
+      const matchesSearch = !q || skillName.includes(q) || row.innerText.toLowerCase().includes(q);
+      const matchesPriority = p === "ALL" || priority.toLowerCase() === p.toLowerCase();
 
-      cb.addEventListener("change", () => {
-        localStorage.setItem(key, cb.checked ? "1" : "0");
-        updateProgress();
-      });
+      if (matchesSearch && matchesPriority) {
+        row.style.display = "";
+      } else {
+        row.style.display = "none";
+      }
     });
+  }
 
-    updateProgress();
-  });
+  searchInput.addEventListener("input", applyFilter);
+  priorityFilter.addEventListener("change", applyFilter);
 }
 
 function initCompanyExplorer() {
