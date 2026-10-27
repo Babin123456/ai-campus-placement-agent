@@ -26,3 +26,6 @@ FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-12345")
 
 # Centralized model setting (to support easy future upgrades)
 GEMINI_MODEL = "gemini-2.5-flash"
+
+# Upload file size limit (16MB)
+MAX_CONTENT_LENGTH = 16 * 1024 * 1024

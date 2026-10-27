@@ -9,9 +9,12 @@ def get_db_connection() -> sqlite3.Connection:
     """
     Establishes and returns a connection to the SQLite database.
     Sets row_factory to sqlite3.Row for dictionary-like access.
+    Configures WAL mode and busy timeout to avoid database lock errors.
     """
-    conn = sqlite3.connect(config.DATABASE_PATH)
+    conn = sqlite3.connect(config.DATABASE_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 def init_db() -> None:
