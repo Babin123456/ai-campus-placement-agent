@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 import prompts
 import config
@@ -15,6 +15,11 @@ from agents.roadmap_agent import RoadmapAgent
 from agents.interview_agent import InterviewAgent
 
 logger = logging.getLogger(__name__)
+
+# Fallback or placeholder skill values to exclude from conflict validation
+GENERIC_FALLBACK_SKILLS = frozenset({
+    "general technical concepts"
+})
 
 class CoordinatorAgent:
     """
@@ -87,15 +92,136 @@ class CoordinatorAgent:
         processed_roadmap = self.roadmap_agent.process(roadmap_block)
         processed_interview = self.interview_agent.process(interview_block)
 
-        # 6. Combine validated data into a final coordinated results payload
+        # 6. Detect cross-section conflicts deterministically without extra API calls
+        conflicts = self._detect_conflicts(
+            job_match=processed_job_match,
+            skill_gap=processed_skill_gap,
+            resume_analysis=processed_resume
+        )
+
+        if conflicts:
+            conflict_types = [f"{c['conflict_type']}:{c['skill']}" for c in conflicts]
+            logger.warning(
+                f"CoordinatorAgent: Detected {len(conflicts)} cross-section conflict(s): {', '.join(conflict_types)}"
+            )
+        else:
+            logger.info("CoordinatorAgent: No cross-section conflicts detected.")
+
+        # 7. Combine validated data into a final coordinated results payload
         combined_payload = {
             "resume_analysis": processed_resume,
             "job_match": processed_job_match,
             "skill_gap": processed_skill_gap,
             "learning_roadmap": processed_roadmap,
             "interview_questions": processed_interview,
-            "overall_recommendation_summary": overall_summary_block
+            "overall_recommendation_summary": overall_summary_block,
+            "conflicts": conflicts
         }
 
         logger.info("CoordinatorAgent: Multi-agent processing complete.")
         return combined_payload
+
+    def _detect_conflicts(
+        self,
+        job_match: Dict[str, Any],
+        skill_gap: List[Dict[str, Any]],
+        resume_analysis: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Deterministically detects cross-section contradictions across structured analysis blocks.
+        Evaluates two rules:
+        1. matched_skill_in_skill_gap: A skill is classified as matched in job_match while simultaneously
+           flagged as a missing skill gap to learn in skill_gap.
+        2. matched_skill_in_missing_skills: A skill is classified as both matched and missing within job_match.
+
+        Skips blank, non-string, and generic fallback values. Deduplicates by (conflict_type, normalized_skill).
+        """
+        if not isinstance(job_match, dict):
+            job_match = {}
+        if not isinstance(skill_gap, list):
+            skill_gap = []
+        if not isinstance(resume_analysis, dict):
+            resume_analysis = {}
+
+        raw_matched = job_match.get("matched_skills", [])
+        if not isinstance(raw_matched, list):
+            raw_matched = []
+
+        raw_missing = job_match.get("missing_skills", [])
+        if not isinstance(raw_missing, list):
+            raw_missing = []
+
+        def normalize(val: Any) -> str:
+            if not isinstance(val, str):
+                return ""
+            return val.strip().lower()
+
+        def is_valid(norm_val: str) -> bool:
+            return bool(norm_val) and norm_val not in GENERIC_FALLBACK_SKILLS
+
+        # Map normalized skill -> original display string for skill_gap
+        gap_skills: Dict[str, str] = {}
+        for item in skill_gap:
+            if isinstance(item, dict):
+                raw_skill = item.get("skill")
+                norm = normalize(raw_skill)
+                if is_valid(norm) and norm not in gap_skills:
+                    gap_skills[norm] = str(raw_skill).strip()
+
+        # Map normalized skill -> original display string for missing_skills
+        missing_skills_map: Dict[str, str] = {}
+        for s in raw_missing:
+            norm = normalize(s)
+            if is_valid(norm) and norm not in missing_skills_map:
+                missing_skills_map[norm] = str(s).strip()
+
+        conflicts: List[Dict[str, Any]] = []
+        seen_conflicts = set()
+
+        for s in raw_matched:
+            norm = normalize(s)
+            if not is_valid(norm):
+                continue
+            display_skill = str(s).strip()
+
+            # Rule 1: matched_skill_in_skill_gap
+            if norm in gap_skills:
+                conflict_key = ("matched_skill_in_skill_gap", norm)
+                if conflict_key not in seen_conflicts:
+                    seen_conflicts.add(conflict_key)
+                    conflicts.append({
+                        "conflict_type": "matched_skill_in_skill_gap",
+                        "severity": "high",
+                        "skill": display_skill,
+                        "sections": ["job_match.matched_skills", "skill_gap"],
+                        "message": (
+                            f"Skill '{display_skill}' is listed as a matched skill in Job Match, "
+                            f"but also flagged as a missing skill gap in Skill Gap Analysis."
+                        ),
+                        "recommended_action": (
+                            f"Review the resume evidence for {display_skill} and "
+                            f"verify whether the skill-gap recommendation is appropriate."
+                        ),
+                    })
+
+            # Rule 2: matched_skill_in_missing_skills
+            if norm in missing_skills_map:
+                conflict_key = ("matched_skill_in_missing_skills", norm)
+                if conflict_key not in seen_conflicts:
+                    seen_conflicts.add(conflict_key)
+                    conflicts.append({
+                        "conflict_type": "matched_skill_in_missing_skills",
+                        "severity": "high",
+                        "skill": display_skill,
+                        "sections": ["job_match.matched_skills", "job_match.missing_skills"],
+                        "message": (
+                            f"Skill '{display_skill}' is simultaneously classified as both a matched skill "
+                            f"and a missing skill in Job Match."
+                        ),
+                        "recommended_action": (
+                            f"Review the contradictory Job Match classifications for {display_skill} "
+                            f"to verify whether your resume demonstrates this requirement."
+                        ),
+                    })
+
+        return conflicts
