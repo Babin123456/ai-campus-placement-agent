@@ -1,7 +1,7 @@
 // Frontend interactions - AI Campus Placement Agent
 
 document.addEventListener("DOMContentLoaded", () => {
-  initRecentAnalyses();
+  initThemeToggle();
   initFormUpload();
   initCircularProgress();
   initMockInterview();
@@ -9,34 +9,31 @@ document.addEventListener("DOMContentLoaded", () => {
   initSkillGapFilter();
 });
 
-function initSkillGapFilter() {
-  const searchInput = document.getElementById("skillSearchInput");
-  const priorityFilter = document.getElementById("skillPriorityFilter");
-  const table = document.getElementById("skillGapTable");
-  if (!table || !searchInput || !priorityFilter) return;
+function initThemeToggle() {
+  const currentTheme = localStorage.getItem("theme") || "light";
+  document.documentElement.setAttribute("data-bs-theme", currentTheme);
 
-  const rows = table.querySelectorAll("tbody tr");
-
-  function applyFilter() {
-    const q = searchInput.value.toLowerCase().trim();
-    const p = priorityFilter.value;
-
-    rows.forEach((row) => {
-      const skillName = row.getAttribute("data-skill") || "";
-      const priority = row.getAttribute("data-priority") || "";
-      const matchesSearch = !q || skillName.includes(q) || row.innerText.toLowerCase().includes(q);
-      const matchesPriority = p === "ALL" || priority.toLowerCase() === p.toLowerCase();
-
-      if (matchesSearch && matchesPriority) {
-        row.style.display = "";
-      } else {
-        row.style.display = "none";
-      }
+  const toggleBtns = document.querySelectorAll(".theme-toggle-btn");
+  toggleBtns.forEach((btn) => {
+    updateThemeIcon(btn, currentTheme);
+    btn.addEventListener("click", () => {
+      const activeTheme = document.documentElement.getAttribute("data-bs-theme");
+      const newTheme = activeTheme === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-bs-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
+      toggleBtns.forEach((b) => updateThemeIcon(b, newTheme));
     });
-  }
+  });
+}
 
-  searchInput.addEventListener("input", applyFilter);
-  priorityFilter.addEventListener("change", applyFilter);
+function updateThemeIcon(btn, theme) {
+  if (theme === "dark") {
+    btn.innerHTML = '<i class="fa-solid fa-sun text-warning"></i>';
+    btn.title = "Switch to Light Mode";
+  } else {
+    btn.innerHTML = '<i class="fa-solid fa-moon text-secondary"></i>';
+    btn.title = "Switch to Dark Mode";
+  }
 }
 
 function initCompanyExplorer() {
