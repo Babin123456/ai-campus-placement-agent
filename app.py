@@ -52,6 +52,22 @@ except Exception as db_err:
 coordinator_agent = CoordinatorAgent()
 live_interview_agent = InterviewAgent()
 
+def get_available_companies() -> list:
+    """
+    Loads list of companies dynamically from data/companies.json with fallback defaults.
+    """
+    companies_file = config.BASE_DIR / "data" / "companies.json"
+    default_companies = ["Google", "Microsoft", "Amazon", "TCS", "Infosys", "Accenture", "Capgemini", "Wipro"]
+    try:
+        if companies_file.exists():
+            with open(companies_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and data:
+                    return sorted(list(data.keys()))
+    except Exception as e:
+        logger.warning(f"Could not load dynamic companies from {companies_file}: {e}")
+    return default_companies
+
 
 @app.route("/api/health")
 @app.route("/health")
@@ -85,7 +101,7 @@ def index() -> str:
     """
     Renders the placement landing page containing the configuration forms.
     """
-    companies_list = ["Google", "Microsoft", "Amazon", "TCS", "Infosys", "Accenture", "Capgemini", "Wipro"]
+    companies_list = get_available_companies()
     return render_template("index.html", companies=companies_list)
 
 
