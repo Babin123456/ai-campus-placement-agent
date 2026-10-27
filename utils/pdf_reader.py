@@ -1,5 +1,6 @@
 import logging
 from PyPDF2 import PdfReader
+from PyPDF2.errors import PdfReadError
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,11 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         logger.info(f"Initiating text extraction from PDF: {pdf_path}")
         reader = PdfReader(pdf_path)
         
+        if getattr(reader, "is_encrypted", False):
+            raise ValueError(
+                "The uploaded PDF is password-protected or encrypted. Please upload an unprotected PDF."
+            )
+
         if not reader.pages:
             raise ValueError("The PDF file contains no pages.")
 
@@ -38,6 +44,9 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     except ValueError as ve:
         logger.error(f"Validation error reading PDF: {str(ve)}")
         raise ve
+    except PdfReadError as pre:
+        logger.error(f"PyPDF2 ReadError encountered: {str(pre)}")
+        raise ValueError(f"Could not read PDF file (corrupted or malformed): {str(pre)}")
     except Exception as e:
         logger.error(f"Unexpected error reading PDF: {str(e)}")
         raise RuntimeError(f"Failed to parse PDF file: {str(e)}")
