@@ -36,6 +36,70 @@ function updateThemeIcon(btn, theme) {
   }
 }
 
+/**
+ * Filter and search controls for the Skill Gap assessment table on the dashboard
+ */
+function initSkillGapFilter() {
+  const searchInput = document.getElementById("skillSearchInput");
+  const priorityFilter = document.getElementById("skillPriorityFilter");
+  const table = document.getElementById("skillGapTable");
+  const countBadge = document.getElementById("skillFilterCount");
+  const emptyState = document.getElementById("skillGapEmptyState");
+
+  if (!table || !searchInput || !priorityFilter) return;
+
+  const rows = table.querySelectorAll("tbody tr.skill-gap-row");
+  const totalRows = rows.length;
+
+  function applyFilter() {
+    const q = searchInput.value.toLowerCase().trim();
+    const p = priorityFilter.value;
+    let visibleCount = 0;
+
+    rows.forEach((row) => {
+      const skillName = (row.getAttribute("data-skill") || "").toLowerCase();
+      const priority = (row.getAttribute("data-priority") || "").toLowerCase();
+      const fullText = row.innerText.toLowerCase();
+
+      const matchesSearch = !q || skillName.includes(q) || fullText.includes(q);
+      const matchesPriority = p === "ALL" || priority === p.toLowerCase();
+
+      if (matchesSearch && matchesPriority) {
+        row.style.display = "";
+        visibleCount++;
+      } else {
+        row.style.display = "none";
+      }
+    });
+
+    if (emptyState) {
+      if (visibleCount === 0 && totalRows > 0) {
+        emptyState.classList.remove("d-none");
+      } else {
+        emptyState.classList.add("d-none");
+      }
+    }
+
+    if (countBadge) {
+      if (q || p !== "ALL") {
+        countBadge.innerText = `Showing ${visibleCount} of ${totalRows} Skills`;
+      } else {
+        countBadge.innerText = `${totalRows} Skills`;
+      }
+    }
+  }
+
+  searchInput.addEventListener("input", applyFilter);
+  priorityFilter.addEventListener("change", applyFilter);
+
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && searchInput.value) {
+      searchInput.value = "";
+      applyFilter();
+    }
+  });
+}
+
 function initCompanyExplorer() {
   const btn = document.getElementById("btnExploreCompany");
   const select = document.getElementById("companySelect");
