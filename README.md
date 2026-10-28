@@ -178,12 +178,6 @@ The following features are being considered:
 
 ---
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 ## Project Status
 
 - ✅ **Multi-Agent Architecture**: Coordinated agent system with specialized sub-agents
@@ -195,25 +189,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ **Mock Interviews**: Interactive interview simulator with real-time evaluation
 - ✅ **PDF Reports**: Comprehensive placement readiness reports
 - ✅ **CI/CD Pipeline**: GitHub Actions for automated testing and validation
-
----
-
----
-
-## Roadmap
-
-See [CHANGELOG.md](CHANGELOG.md) for version history and upcoming features.
-
-### Planned Features
-
-- [ ] GitHub Profile Analyzer
-- [ ] LinkedIn Profile Review
-- [ ] Voice Mock Interviews
-- [ ] Resume Version Comparison
-- [ ] LeetCode Progress Tracking
-- [ ] Recruiter Email Generator
-- [ ] Placement Calendar Integration
-- [ ] Internship Recommendation Agent
 
 ---
 
@@ -239,8 +214,15 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ---
 
-## Star History
+## License
 
-If you find this project helpful, please consider giving it a ⭐ star on GitHub!
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=deepikagandla74/ai-campus-placement-agent&type=Date)](https://star-history.com/#deepikagandla74/ai-campus-placement-agent&Date)
+---
+
+
+<div align='center'>
+  
+### If you find this repo helpful, please consider giving it a ⭐ star on GitHub!
+
+</div>
