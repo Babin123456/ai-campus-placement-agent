@@ -34,21 +34,12 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 ## Development Setup
 
-1. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On Unix/MacOS:
-   source venv/bin/activate
-   ```
-
-2. Install dependencies:
+1. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Set up environment variables:
+2. Set up environment variables:
    - Copy `.env.example` (if available) or create a `.env` file
    - Add your Gemini API key:
      ```
@@ -56,12 +47,12 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
      GEMINI_API_KEY=your_gemini_api_key_here
      ```
 
-4. Run the application:
+3. Run the application:
    ```bash
    python app.py
    ```
 
-5. Visit `http://127.0.0.1:5000/` in your browser
+4. Visit `http://127.0.0.1:5000/` in your browser
 
 ## Contributing Guidelines
 
@@ -107,7 +98,7 @@ For NSoC Project Kernel consideration, the project maintainer is responsible for
 4. Commit your changes:
    ```bash
    git add .
-   git commit -m "Brief description of your changes"
+   git commit -m "Short description of your changes"
    ```
 
 ### Coding Standards
@@ -169,10 +160,6 @@ When reporting a bug, please include:
 - **Expected Behavior**: What you expected to happen
 - **Actual Behavior**: What actually happened
 - **Screenshots**: If applicable, add screenshots
-- **Environment**:
-  - OS: [e.g., Windows 10, macOS, Ubuntu]
-  - Python version: [e.g., 3.9.7]
-  - Browser: [e.g., Chrome 95]
 
 ### Feature Requests
 
@@ -194,6 +181,6 @@ If you have questions about contributing:
 
 ## Recognition
 
-Contributors will be recognized in the project's CONTRIBUTORS file and README.
+Contributors will be recognized in the project's CONTRIBUTORS file.
 
 Thank you for contributing to AI Campus Placement Agent! 🚀
