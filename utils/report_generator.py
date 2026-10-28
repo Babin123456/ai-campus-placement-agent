@@ -1,5 +1,7 @@
 import os
+import html
 import logging
+from typing import Any
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
@@ -8,10 +10,19 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 logger = logging.getLogger(__name__)
 
+def escape_xml(value: Any) -> str:
+    """
+    Safely escapes text for ReportLab XML/HTML parsing while handling non-strings.
+    Prevents ExpatError crashes on special characters like '&', '<', '>'.
+    """
+    if value is None:
+        return ""
+    return html.escape(str(value), quote=False)
+
 def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
     """
     Generates a beautifully structured PDF placement readiness report.
-    Converts metrics, skill gap, and roadmap into a professional printable PDF.
+    Converts metrics, skill gap, conflict advisories, and roadmap into a professional printable PDF.
     """
     try:
         logger.info(f"Generating PDF report at: {output_path}")
@@ -33,6 +44,7 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
         dark_text_color = colors.HexColor("#202124")
         light_grey_bg = colors.HexColor("#f8f9fa")
         border_grey = colors.HexColor("#dadce0")
+        warning_amber = colors.HexColor("#d93025")
         
         title_style = ParagraphStyle(
             'ReportTitle',
@@ -122,19 +134,23 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
         story.append(Spacer(1, 30))
         story.append(Paragraph("AI CAMPUS PLACEMENT REPORT", title_style))
         story.append(Spacer(1, 10))
-        story.append(Paragraph(f"Preparation Analysis & Learning Roadmap for {analysis_data.get('company_name', 'Target Company')}", subtitle_style))
+        target_company = escape_xml(analysis_data.get('company_name', 'Target Company'))
+        story.append(Paragraph(f"Preparation Analysis & Learning Roadmap for {target_company}", subtitle_style))
         story.append(Spacer(1, 20))
         
         # Summary metrics
         resume_analysis = analysis_data.get("results", {}).get("resume_analysis", {})
         job_match = analysis_data.get("results", {}).get("job_match", {})
         
+        ats_score = escape_xml(resume_analysis.get('ats_score', 'N/A'))
+        match_pct = escape_xml(job_match.get('match_percentage', 'N/A'))
+        
         metrics_grid_data = [
             [
                 Paragraph("<b>ATS Score:</b>", body_style),
-                Paragraph(f"<b>{resume_analysis.get('ats_score', 'N/A')}/100</b>", body_style),
+                Paragraph(f"<b>{ats_score}/100</b>", body_style),
                 Paragraph("<b>Job Match Score:</b>", body_style),
-                Paragraph(f"<b>{job_match.get('match_percentage', 'N/A')}%</b>", body_style)
+                Paragraph(f"<b>{match_pct}%</b>", body_style)
             ]
         ]
         
@@ -152,13 +168,35 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
         
         # Summary block
         story.append(Paragraph("Executive Resume Summary", h1_style))
-        story.append(Paragraph(resume_analysis.get("summary", "No summary available."), body_style))
+        summary_text = escape_xml(resume_analysis.get("summary", "No summary available."))
+        story.append(Paragraph(summary_text, body_style))
         story.append(Spacer(1, 15))
         
-        # Overall Recommendation
+        # Overall Recommendation (fallback from root results or resume_analysis)
         story.append(Paragraph("Overall Recommendation", h1_style))
-        story.append(Paragraph(resume_analysis.get("overall_recommendation", "No recommendation available."), body_style))
+        rec_text = escape_xml(
+            analysis_data.get("results", {}).get("overall_recommendation_summary")
+            or resume_analysis.get("overall_recommendation")
+            or "Overall campus placement analysis successfully compiled."
+        )
+        story.append(Paragraph(rec_text, body_style))
         story.append(Spacer(1, 15))
+        
+        # Cross-section conflict advisory if contradictions detected
+        conflicts = analysis_data.get("results", {}).get("conflicts", [])
+        if conflicts:
+            story.append(Paragraph("Placement Advisory: Contradictions Detected", h1_style))
+            story.append(Paragraph(
+                "Our automated verification flagged conflicting recommendations between the job match analysis and the skill gap roadmap. Review the following items before finalizing your preparation plan:",
+                body_style
+            ))
+            story.append(Spacer(1, 6))
+            for c in conflicts:
+                skill_name = escape_xml(c.get("skill", "Unknown"))
+                rule_desc = escape_xml(c.get("rule_description", "Potential contradiction in skill classification."))
+                conflict_type = escape_xml(c.get("conflict_type", "Advisory"))
+                story.append(Paragraph(f"&bull; <b>[{conflict_type}]</b> Skill: <i>{skill_name}</i> &mdash; {rule_desc}", bullet_style))
+            story.append(Spacer(1, 15))
         
         story.append(PageBreak())
         
@@ -166,24 +204,40 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
         story.append(Paragraph("Resume Analysis Details", h1_style))
         
         story.append(Paragraph("Strengths", h2_style))
-        for strength in resume_analysis.get("strengths", []):
-            story.append(Paragraph(f"&bull; {strength}", bullet_style))
+        strengths = resume_analysis.get("strengths", [])
+        if strengths:
+            for strength in strengths:
+                story.append(Paragraph(f"&bull; {escape_xml(strength)}", bullet_style))
+        else:
+            story.append(Paragraph("No specific strengths noted.", body_style))
         story.append(Spacer(1, 10))
         
         story.append(Paragraph("Weaknesses / Areas of Improvement", h2_style))
-        for weakness in resume_analysis.get("weaknesses", []):
-            story.append(Paragraph(f"&bull; {weakness}", bullet_style))
+        weaknesses = resume_analysis.get("weaknesses", [])
+        if weaknesses:
+            for weakness in weaknesses:
+                story.append(Paragraph(f"&bull; {escape_xml(weakness)}", bullet_style))
+        else:
+            story.append(Paragraph("No critical weaknesses detected.", body_style))
         story.append(Spacer(1, 10))
         
         story.append(Paragraph("Grammar & Formatting Suggestions", h2_style))
-        for suggestion in resume_analysis.get("grammar_suggestions", []) + resume_analysis.get("formatting_suggestions", []):
-            story.append(Paragraph(f"&bull; {suggestion}", bullet_style))
+        all_suggs = resume_analysis.get("grammar_suggestions", []) + resume_analysis.get("formatting_suggestions", [])
+        if all_suggs:
+            for suggestion in all_suggs:
+                story.append(Paragraph(f"&bull; {escape_xml(suggestion)}", bullet_style))
+        else:
+            story.append(Paragraph("Formatting and grammar follow standard industry guidelines.", body_style))
         story.append(Spacer(1, 15))
         
         # Job Match adjustments
         story.append(Paragraph("Top 5 Job Matching Adjustments", h1_style))
-        for idx, change in enumerate(job_match.get("top_5_resume_changes", []), 1):
-            story.append(Paragraph(f"<b>{idx}.</b> {change}", bullet_style))
+        changes = job_match.get("top_5_resume_changes", [])
+        if changes:
+            for idx, change in enumerate(changes, 1):
+                story.append(Paragraph(f"<b>{idx}.</b> {escape_xml(change)}", bullet_style))
+        else:
+            story.append(Paragraph("No critical adjustments required for the target profile.", body_style))
             
         story.append(PageBreak())
         
@@ -205,13 +259,15 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
             ]
             
             for gap in skill_gaps:
-                description_str = f"<b>Resource:</b> {gap.get('learning_resource', 'N/A')}<br/><b>Project:</b> {gap.get('project_suggestion', 'N/A')}"
+                res_esc = escape_xml(gap.get('learning_resource', 'N/A'))
+                proj_esc = escape_xml(gap.get('project_suggestion', 'N/A'))
+                description_str = f"<b>Resource:</b> {res_esc}<br/><b>Project:</b> {proj_esc}"
                 gap_table_data.append([
-                    Paragraph(gap.get("skill", "N/A"), table_body_style),
-                    Paragraph(gap.get("importance", "N/A"), table_body_style),
-                    Paragraph(gap.get("learning_time", "N/A"), table_body_style),
+                    Paragraph(escape_xml(gap.get("skill", "N/A")), table_body_style),
+                    Paragraph(escape_xml(gap.get("importance", "N/A")), table_body_style),
+                    Paragraph(escape_xml(gap.get("learning_time", "N/A")), table_body_style),
                     Paragraph(description_str, table_body_style),
-                    Paragraph(gap.get("priority", "N/A"), table_body_style)
+                    Paragraph(escape_xml(gap.get("priority", "N/A")), table_body_style)
                 ])
                 
             gap_table = Table(gap_table_data, colWidths=[90, 65, 65, 220, 64])
@@ -236,16 +292,23 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
         
         roadmap_list = analysis_data.get("results", {}).get("learning_roadmap", [])
         for w in roadmap_list:
+            week_title = escape_xml(w.get('week', 'Week X'))
+            hours = escape_xml(w.get('estimated_hours', 10))
+            topics = ", ".join(escape_xml(t) for t in w.get('topics', [])) or "None"
+            coding = ", ".join(escape_xml(c) for c in w.get('coding_practice', [])) or "None"
+            projects = ", ".join(escape_xml(p) for p in w.get('mini_projects', [])) or "None"
+            revision = ", ".join(escape_xml(r) for r in w.get('revision_tasks', [])) or "None"
+            
             w_story = [
-                Paragraph(f"<b>{w.get('week', 'Week X')}</b> ({w.get('estimated_hours', 10)} Hours)", h2_style),
-                Paragraph(f"<b>Topics to Cover:</b> {', '.join(w.get('topics', [])) if w.get('topics') else 'None'}", body_style),
-                Paragraph(f"<b>Coding Practice:</b> {', '.join(w.get('coding_practice', [])) if w.get('coding_practice') else 'None'}", body_style),
-                Paragraph(f"<b>Mini Project:</b> {', '.join(w.get('mini_projects', [])) if w.get('mini_projects') else 'None'}", body_style),
+                Paragraph(f"<b>{week_title}</b> ({hours} Hours)", h2_style),
+                Paragraph(f"<b>Topics to Cover:</b> {topics}", body_style),
+                Paragraph(f"<b>Coding Practice:</b> {coding}", body_style),
+                Paragraph(f"<b>Mini Project:</b> {projects}", body_style),
                 Paragraph(f"<b>Interview Questions:</b>", body_style)
             ]
             for iq in w.get("interview_questions", []):
-                w_story.append(Paragraph(f"  &bull; {iq}", bullet_style))
-            w_story.append(Paragraph(f"<b>Revision Tasks:</b> {', '.join(w.get('revision_tasks', [])) if w.get('revision_tasks') else 'None'}", body_style))
+                w_story.append(Paragraph(f"  &bull; {escape_xml(iq)}", bullet_style))
+            w_story.append(Paragraph(f"<b>Revision Tasks:</b> {revision}", body_style))
             w_story.append(Spacer(1, 12))
             
             story.append(KeepTogether(w_story))
