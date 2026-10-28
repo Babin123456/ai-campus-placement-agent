@@ -15,7 +15,7 @@ from utils.database import (
     get_interview_session,
     update_interview_session
 )
-from utils.pdf_reader import extract_text_from_pdf
+from utils.pdf_reader import extract_text_from_pdf, validate_resume_text, MAX_RESUME_TEXT_CHARS
 from utils.report_generator import generate_pdf_report
 from agents.coordinator import CoordinatorAgent
 from agents.interview_agent import InterviewAgent
@@ -134,7 +134,11 @@ def analyze():
         resume_filename = "pasted_resume.txt"
 
         if pasted_text:
-            extracted_resume_text = pasted_text
+            is_valid, validation_msg = validate_resume_text(pasted_text)
+            if not is_valid:
+                flash(validation_msg, "error")
+                return redirect(url_for("index"))
+            extracted_resume_text = pasted_text[:MAX_RESUME_TEXT_CHARS]
             resume_filename = "Pasted_Resume.txt"
         elif uploaded_file and uploaded_file.filename != "":
             if not uploaded_file.filename.lower().endswith(".pdf"):
@@ -152,6 +156,8 @@ def analyze():
 
         selected_company = request.form.get("company", "General").strip()
         job_description = request.form.get("job_description", "").strip()
+        if len(job_description) > 15000:
+            job_description = job_description[:15000]
 
         # Execute coordinated multi-agent analysis via single Gemini call
         analysis_payload = coordinator_agent.analyze(
@@ -172,6 +178,10 @@ def analyze():
         # Redirect user directly to their new placement analysis dashboard
         return redirect(url_for("dashboard", analysis_id=file_uuid))
 
+    except ValueError as ve:
+        logger.warning(f"Validation error in analysis workflow: {str(ve)}")
+        flash(str(ve), "error")
+        return redirect(url_for("index"))
     except Exception as e:
         logger.error(f"Analysis workflow crashed: {str(e)}")
         flash(f"Analysis Failed: {str(e)}", "error")
