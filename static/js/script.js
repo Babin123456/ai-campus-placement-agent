@@ -269,6 +269,30 @@ function initMockInterview() {
     }
   }
 
+  // Live word counter and Ctrl+Enter keyboard submission
+  if (answerInput) {
+    const wordCountBadge = document.getElementById("wordCountBadge");
+    answerInput.addEventListener("input", () => {
+      const text = answerInput.value.trim();
+      const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+      if (wordCountBadge) {
+        wordCountBadge.innerText = `${words} word${words === 1 ? "" : "s"}`;
+        if (words >= 30) {
+          wordCountBadge.className = "text-success fw-bold";
+        } else {
+          wordCountBadge.className = "text-secondary fw-semibold";
+        }
+      }
+    });
+
+    answerInput.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        chatForm.requestSubmit();
+      }
+    });
+  }
+
   chatForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     
@@ -332,10 +356,15 @@ function initMockInterview() {
       appendChatBubble(feedbackText, "agent");
 
       if (result.completed) {
-        appendChatBubble("<b>Congratulations! You have completed all mock interview questions.</b><br/>Please return to the dashboard to review your overall results.", "agent");
+        appendChatBubble("<b>Congratulations! You have completed all mock interview questions.</b><br/>Please review your performance summary and export your transcript.", "agent");
         resetInputs(true); // Disable form inputs permanently
         document.getElementById("btnBackToDashboard")?.classList.remove("btn-outline-secondary");
         document.getElementById("btnBackToDashboard")?.classList.add("btn-primary");
+
+        // Display completion modal if summary data is available
+        if (result.summary) {
+          showCompletionModal(result.summary);
+        }
       } else {
         // Move to next question
         const nextQ = result.next_question;
@@ -387,5 +416,29 @@ function initMockInterview() {
     const progPercent = totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0;
     document.getElementById("interviewProgressText").innerText = `${totalAnswered}/${totalQuestions} Questions Answered (${progPercent}%)`;
     document.getElementById("interviewProgressBar").style.width = `${progPercent}%`;
+  }
+
+  function showCompletionModal(summary) {
+    const modalEl = document.getElementById("completionModal");
+    if (!modalEl || typeof bootstrap === "undefined") return;
+
+    const overallScoreEl = document.getElementById("modalOverallScore");
+    const verdictBadge = document.getElementById("modalVerdictBadge");
+    const feedbackEl = document.getElementById("modalSummaryFeedback");
+    const hrScoreEl = document.getElementById("modalHrScore");
+    const techScoreEl = document.getElementById("modalTechScore");
+    const behScoreEl = document.getElementById("modalBehScore");
+
+    if (overallScoreEl) overallScoreEl.innerText = summary.overall_score || "0";
+    if (verdictBadge) verdictBadge.innerText = summary.readiness_verdict || "Completed";
+    if (feedbackEl && summary.summary_feedback) feedbackEl.innerText = summary.summary_feedback;
+
+    const cats = summary.category_scores || {};
+    if (hrScoreEl && cats.HR) hrScoreEl.innerText = `${cats.HR.average_score}%`;
+    if (techScoreEl && cats.Technical) techScoreEl.innerText = `${cats.Technical.average_score}%`;
+    if (behScoreEl && cats.Behavioral) behScoreEl.innerText = `${cats.Behavioral.average_score}%`;
+
+    const bsModal = new bootstrap.Modal(modalEl);
+    bsModal.show();
   }
 }
