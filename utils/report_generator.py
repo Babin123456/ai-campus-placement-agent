@@ -1,6 +1,8 @@
+import os
+import html
 import logging
-from xml.sax.saxutils import escape
-
+from typing import Any
+from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
@@ -17,35 +19,19 @@ from reportlab.platypus import (
 
 logger = logging.getLogger(__name__)
 
-
-def _escape_pdf_text(value) -> str:
-    """Escape dynamic text for ReportLab's XML-like Paragraph parser.
-
-    ReportLab's Paragraph intentionally accepts markup (for example ``<b>`` and
-    ``<br/>``). Values derived from resumes or model output must be escaped
-    before being interpolated into that markup, otherwise literal text such as
-    ``std::vector<T>`` can be interpreted as formatting or break PDF creation.
+def escape_xml(value: Any) -> str:
+    """
+    Safely escapes text for ReportLab XML/HTML parsing while handling non-strings.
+    Prevents ExpatError crashes on special characters like '&', '<', '>'.
     """
     if value is None:
         return ""
-    return escape(str(value))
-
-
-def _escape_pdf_list(items, fallback: str = "None") -> str:
-    """Join a sequence of dynamic values after escaping each item."""
-    if items is None or items == [] or items == "":
-        return fallback
-    if isinstance(items, (list, tuple)):
-        values = [_escape_pdf_text(item) for item in items if item is not None and str(item)]
-        return ", ".join(values) if values else fallback
-    return _escape_pdf_text(items)
-
+    return html.escape(str(value), quote=False)
 
 def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
-    """Generate a printable PDF placement-readiness report.
-
-    Dynamic report content is escaped before being passed to ReportLab's
-    ``Paragraph`` parser, while intentional formatting markup remains intact.
+    """
+    Generates a beautifully structured PDF placement readiness report.
+    Converts metrics, skill gap, conflict advisories, and roadmap into a professional printable PDF.
     """
     try:
         logger.info("Generating PDF report at: %s", output_path)
@@ -67,7 +53,8 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
         dark_text_color = colors.HexColor("#202124")
         light_grey_bg = colors.HexColor("#f8f9fa")
         border_grey = colors.HexColor("#dadce0")
-
+        warning_amber = colors.HexColor("#d93025")
+        
         title_style = ParagraphStyle(
             "ReportTitle",
             parent=styles["Heading1"],
@@ -156,28 +143,23 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
         story.append(Spacer(1, 30))
         story.append(Paragraph("AI CAMPUS PLACEMENT REPORT", title_style))
         story.append(Spacer(1, 10))
-        company_name = _escape_pdf_text(analysis_data.get("company_name") or "Target Company")
-        story.append(
-            Paragraph(
-                f"Preparation Analysis &amp; Learning Roadmap for {company_name}",
-                subtitle_style,
-            )
-        )
+        target_company = escape_xml(analysis_data.get('company_name', 'Target Company'))
+        story.append(Paragraph(f"Preparation Analysis & Learning Roadmap for {target_company}", subtitle_style))
         story.append(Spacer(1, 20))
 
         # Summary metrics
-        results = analysis_data.get("results") or {}
-        resume_analysis = results.get("resume_analysis") or {}
-        job_match = results.get("job_match") or {}
-
-        ats_score = _escape_pdf_text(resume_analysis.get("ats_score", "N/A"))
-        match_percentage = _escape_pdf_text(job_match.get("match_percentage", "N/A"))
+        resume_analysis = analysis_data.get("results", {}).get("resume_analysis", {})
+        job_match = analysis_data.get("results", {}).get("job_match", {})
+        
+        ats_score = escape_xml(resume_analysis.get('ats_score', 'N/A'))
+        match_pct = escape_xml(job_match.get('match_percentage', 'N/A'))
+        
         metrics_grid_data = [
             [
                 Paragraph("<b>ATS Score:</b>", body_style),
                 Paragraph(f"<b>{ats_score}/100</b>", body_style),
                 Paragraph("<b>Job Match Score:</b>", body_style),
-                Paragraph(f"<b>{match_percentage}%</b>", body_style),
+                Paragraph(f"<b>{match_pct}%</b>", body_style)
             ]
         ]
 
@@ -199,52 +181,76 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
 
         # Summary block
         story.append(Paragraph("Executive Resume Summary", h1_style))
-        story.append(
-            Paragraph(
-                _escape_pdf_text(resume_analysis.get("summary") or "No summary available."),
-                body_style,
-            )
-        )
+        summary_text = escape_xml(resume_analysis.get("summary", "No summary available."))
+        story.append(Paragraph(summary_text, body_style))
         story.append(Spacer(1, 15))
-
-        # Overall recommendation
+        
+        # Overall Recommendation (fallback from root results or resume_analysis)
         story.append(Paragraph("Overall Recommendation", h1_style))
-        story.append(
-            Paragraph(
-                _escape_pdf_text(
-                    resume_analysis.get("overall_recommendation") or "No recommendation available."
-                ),
-                body_style,
-            )
+        rec_text = escape_xml(
+            analysis_data.get("results", {}).get("overall_recommendation_summary")
+            or resume_analysis.get("overall_recommendation")
+            or "Overall campus placement analysis successfully compiled."
         )
+        story.append(Paragraph(rec_text, body_style))
         story.append(Spacer(1, 15))
+        
+        # Cross-section conflict advisory if contradictions detected
+        conflicts = analysis_data.get("results", {}).get("conflicts", [])
+        if conflicts:
+            story.append(Paragraph("Placement Advisory: Contradictions Detected", h1_style))
+            story.append(Paragraph(
+                "Our automated verification flagged conflicting recommendations between the job match analysis and the skill gap roadmap. Review the following items before finalizing your preparation plan:",
+                body_style
+            ))
+            story.append(Spacer(1, 6))
+            for c in conflicts:
+                skill_name = escape_xml(c.get("skill", "Unknown"))
+                rule_desc = escape_xml(c.get("rule_description", "Potential contradiction in skill classification."))
+                conflict_type = escape_xml(c.get("conflict_type", "Advisory"))
+                story.append(Paragraph(f"&bull; <b>[{conflict_type}]</b> Skill: <i>{skill_name}</i> &mdash; {rule_desc}", bullet_style))
+            story.append(Spacer(1, 15))
+        
         story.append(PageBreak())
 
         # Resume feedback
         story.append(Paragraph("Resume Analysis Details", h1_style))
         story.append(Paragraph("Strengths", h2_style))
-        for strength in resume_analysis.get("strengths", []):
-            story.append(Paragraph(f"&bull; {_escape_pdf_text(strength)}", bullet_style))
+        strengths = resume_analysis.get("strengths", [])
+        if strengths:
+            for strength in strengths:
+                story.append(Paragraph(f"&bull; {escape_xml(strength)}", bullet_style))
+        else:
+            story.append(Paragraph("No specific strengths noted.", body_style))
         story.append(Spacer(1, 10))
 
         story.append(Paragraph("Weaknesses / Areas of Improvement", h2_style))
-        for weakness in resume_analysis.get("weaknesses", []):
-            story.append(Paragraph(f"&bull; {_escape_pdf_text(weakness)}", bullet_style))
+        weaknesses = resume_analysis.get("weaknesses", [])
+        if weaknesses:
+            for weakness in weaknesses:
+                story.append(Paragraph(f"&bull; {escape_xml(weakness)}", bullet_style))
+        else:
+            story.append(Paragraph("No critical weaknesses detected.", body_style))
         story.append(Spacer(1, 10))
-
-        story.append(Paragraph("Grammar &amp; Formatting Suggestions", h2_style))
-        suggestions = resume_analysis.get("grammar_suggestions", []) + resume_analysis.get(
-            "formatting_suggestions", []
-        )
-        for suggestion in suggestions:
-            story.append(Paragraph(f"&bull; {_escape_pdf_text(suggestion)}", bullet_style))
+        
+        story.append(Paragraph("Grammar & Formatting Suggestions", h2_style))
+        all_suggs = resume_analysis.get("grammar_suggestions", []) + resume_analysis.get("formatting_suggestions", [])
+        if all_suggs:
+            for suggestion in all_suggs:
+                story.append(Paragraph(f"&bull; {escape_xml(suggestion)}", bullet_style))
+        else:
+            story.append(Paragraph("Formatting and grammar follow standard industry guidelines.", body_style))
         story.append(Spacer(1, 15))
 
         # Job-match adjustments
         story.append(Paragraph("Top 5 Job Matching Adjustments", h1_style))
-        for idx, change in enumerate(job_match.get("top_5_resume_changes", []), 1):
-            story.append(Paragraph(f"<b>{idx}.</b> {_escape_pdf_text(change)}", bullet_style))
-
+        changes = job_match.get("top_5_resume_changes", [])
+        if changes:
+            for idx, change in enumerate(changes, 1):
+                story.append(Paragraph(f"<b>{idx}.</b> {escape_xml(change)}", bullet_style))
+        else:
+            story.append(Paragraph("No critical adjustments required for the target profile.", body_style))
+            
         story.append(PageBreak())
 
         # Skill-gaps table
@@ -272,21 +278,17 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
             ]
 
             for gap in skill_gaps:
-                resource = _escape_pdf_text(gap.get("learning_resource", "N/A"))
-                project = _escape_pdf_text(gap.get("project_suggestion", "N/A"))
-                description_str = (
-                    f"<b>Resource:</b> {resource}<br/><b>Project:</b> {project}"
-                )
-                gap_table_data.append(
-                    [
-                        Paragraph(_escape_pdf_text(gap.get("skill", "N/A")), table_body_style),
-                        Paragraph(_escape_pdf_text(gap.get("importance", "N/A")), table_body_style),
-                        Paragraph(_escape_pdf_text(gap.get("learning_time", "N/A")), table_body_style),
-                        Paragraph(description_str, table_body_style),
-                        Paragraph(_escape_pdf_text(gap.get("priority", "N/A")), table_body_style),
-                    ]
-                )
-
+                res_esc = escape_xml(gap.get('learning_resource', 'N/A'))
+                proj_esc = escape_xml(gap.get('project_suggestion', 'N/A'))
+                description_str = f"<b>Resource:</b> {res_esc}<br/><b>Project:</b> {proj_esc}"
+                gap_table_data.append([
+                    Paragraph(escape_xml(gap.get("skill", "N/A")), table_body_style),
+                    Paragraph(escape_xml(gap.get("importance", "N/A")), table_body_style),
+                    Paragraph(escape_xml(gap.get("learning_time", "N/A")), table_body_style),
+                    Paragraph(description_str, table_body_style),
+                    Paragraph(escape_xml(gap.get("priority", "N/A")), table_body_style)
+                ])
+                
             gap_table = Table(gap_table_data, colWidths=[90, 65, 65, 220, 64])
             gap_table.setStyle(
                 TableStyle(
@@ -318,41 +320,30 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
             )
         )
         story.append(Spacer(1, 10))
-
-        for week in results.get("learning_roadmap", []):
-            week_story = [
-                Paragraph(
-                    f"<b>{_escape_pdf_text(week.get('week', 'Week X'))}</b> "
-                    f"({_escape_pdf_text(week.get('estimated_hours', 10))} Hours)",
-                    h2_style,
-                ),
-                Paragraph(
-                    f"<b>Topics to Cover:</b> {_escape_pdf_list(week.get('topics', []))}",
-                    body_style,
-                ),
-                Paragraph(
-                    f"<b>Coding Practice:</b> {_escape_pdf_list(week.get('coding_practice', []))}",
-                    body_style,
-                ),
-                Paragraph(
-                    f"<b>Mini Project:</b> {_escape_pdf_list(week.get('mini_projects', []))}",
-                    body_style,
-                ),
-                Paragraph("<b>Interview Questions:</b>", body_style),
+        
+        roadmap_list = analysis_data.get("results", {}).get("learning_roadmap", [])
+        for w in roadmap_list:
+            week_title = escape_xml(w.get('week', 'Week X'))
+            hours = escape_xml(w.get('estimated_hours', 10))
+            topics = ", ".join(escape_xml(t) for t in w.get('topics', [])) or "None"
+            coding = ", ".join(escape_xml(c) for c in w.get('coding_practice', [])) or "None"
+            projects = ", ".join(escape_xml(p) for p in w.get('mini_projects', [])) or "None"
+            revision = ", ".join(escape_xml(r) for r in w.get('revision_tasks', [])) or "None"
+            
+            w_story = [
+                Paragraph(f"<b>{week_title}</b> ({hours} Hours)", h2_style),
+                Paragraph(f"<b>Topics to Cover:</b> {topics}", body_style),
+                Paragraph(f"<b>Coding Practice:</b> {coding}", body_style),
+                Paragraph(f"<b>Mini Project:</b> {projects}", body_style),
+                Paragraph(f"<b>Interview Questions:</b>", body_style)
             ]
-            for interview_question in week.get("interview_questions", []):
-                week_story.append(
-                    Paragraph(f"&bull; {_escape_pdf_text(interview_question)}", bullet_style)
-                )
-            week_story.append(
-                Paragraph(
-                    f"<b>Revision Tasks:</b> {_escape_pdf_list(week.get('revision_tasks', []))}",
-                    body_style,
-                )
-            )
-            week_story.append(Spacer(1, 12))
-            story.append(KeepTogether(week_story))
-
+            for iq in w.get("interview_questions", []):
+                w_story.append(Paragraph(f"  &bull; {escape_xml(iq)}", bullet_style))
+            w_story.append(Paragraph(f"<b>Revision Tasks:</b> {revision}", body_style))
+            w_story.append(Spacer(1, 12))
+            
+            story.append(KeepTogether(w_story))
+            
         doc.build(story)
         logger.info("PDF report compiled successfully.")
         return output_path

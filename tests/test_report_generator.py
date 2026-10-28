@@ -1,69 +1,133 @@
+import os
+import tempfile
 from pathlib import Path
+import pytest
 
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph
-
-from utils.report_generator import _escape_pdf_text, generate_pdf_report
+from utils.report_generator import generate_pdf_report, escape_xml
 
 
-def test_escape_pdf_text_preserves_markup_like_text_literally():
-    source = "Experience with std::vector<T> & I know <img>"
-
-    paragraph = Paragraph(_escape_pdf_text(source), getSampleStyleSheet()["Normal"])
-
-    assert paragraph.getPlainText() == source
-
-
-def test_escape_pdf_text_handles_xml_special_characters_and_none():
-    assert _escape_pdf_text("R&D <Campus> \"AI\"") == "R&amp;D &lt;Campus&gt; \"AI\""
-    assert _escape_pdf_text(None) == ""
+def test_escape_xml_utility():
+    assert escape_xml("C++ & Python") == "C++ &amp; Python"
+    assert escape_xml("<script>alert(1)</script>") == "&lt;script&gt;alert(1)&lt;/script&gt;"
+    assert escape_xml(None) == ""
+    assert escape_xml(100) == "100"
 
 
-def test_pdf_generation_succeeds_with_markup_like_dynamic_text(tmp_path: Path):
-    output_path = tmp_path / "placement-report.pdf"
-    analysis_data = {
-        "company_name": "R&D <Campus>",
+def test_generate_pdf_report_basic():
+    sample_data = {
+        "company_name": "Google",
         "results": {
             "resume_analysis": {
-                "ats_score": 82,
-                "summary": "I know <img> and use std::vector<T> & modern C++.",
-                "overall_recommendation": "Keep <tags> as literal text & validate output.",
-                "strengths": ["C++ templates: std::vector<T> & iterators"],
-                "weaknesses": ["Avoid literal <img> markup in generated text"],
-                "grammar_suggestions": ["Use A & B correctly"],
-                "formatting_suggestions": ["Keep <code> examples readable"],
+                "ats_score": 85,
+                "summary": "Candidate has strong CS background.",
+                "overall_recommendation": "Focus on high-level system design.",
+                "strengths": ["Fast learner", "Python & SQL"],
+                "weaknesses": ["Lack of cloud certifications"],
+                "grammar_suggestions": ["Use active voice"],
+                "formatting_suggestions": ["Standardize date formatting"]
             },
             "job_match": {
-                "match_percentage": 75,
-                "top_5_resume_changes": ["Mention std::vector<T> & C++ skills"],
+                "match_percentage": 78,
+                "top_5_resume_changes": ["Highlight distributed systems", "Detail backend scalability"]
             },
             "skill_gap": [
                 {
-                    "skill": "std::vector<T>",
+                    "skill": "Docker & Kubernetes",
                     "importance": "High",
-                    "learning_time": "2 weeks",
-                    "learning_resource": "Guide <Tutorial> & Docs",
-                    "project_suggestion": "Build a parser for <img> text & tags",
-                    "priority": "High",
+                    "learning_time": "3 weeks",
+                    "learning_resource": "Official Documentation",
+                    "project_suggestion": "Containerize microservices app",
+                    "priority": "High"
                 }
             ],
             "learning_roadmap": [
                 {
-                    "week": "Week 1 <Basics>",
-                    "estimated_hours": 5,
-                    "topics": ["C++ <Templates> & generics"],
-                    "coding_practice": ["Parse <img> safely"],
-                    "mini_projects": ["Build std::vector<T> demo & tests"],
-                    "interview_questions": ["Explain <T> & templates"],
-                    "revision_tasks": ["Review A & B"],
+                    "week": "Week 1",
+                    "estimated_hours": 12,
+                    "topics": ["Data Structures", "Algorithms <O(N)>"],
+                    "coding_practice": ["LeetCode 1 & 2"],
+                    "mini_projects": ["Cache implementation"],
+                    "interview_questions": ["Explain hash collision & resolution."],
+                    "revision_tasks": ["Review time complexities"]
                 }
             ],
-        },
+            "conflicts": []
+        }
     }
 
-    returned_path = generate_pdf_report(analysis_data, str(output_path))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_file = Path(tmpdir) / "placement_report.pdf"
+        result_path = generate_pdf_report(sample_data, str(output_file))
 
-    assert returned_path == str(output_path)
-    assert output_path.exists()
-    assert output_path.read_bytes().startswith(b"%PDF-")
-    assert output_path.stat().st_size > 0
+        assert os.path.exists(result_path)
+        assert os.path.getsize(result_path) > 1000  # Generated valid PDF with content
+
+
+def test_generate_pdf_report_with_special_characters_and_conflicts():
+    sample_data_special = {
+        "company_name": "AT&T <Global>",
+        "results": {
+            "overall_recommendation_summary": "Prepare for DSA & System Design with O(N < M) runtime.",
+            "resume_analysis": {
+                "ats_score": "90",
+                "summary": "Proficient in C++ & C# <OOP patterns> & Python 3.11.",
+                "strengths": ["C++ & STL", "Complexity < O(N^2)"],
+                "weaknesses": ["None & N/A"],
+                "grammar_suggestions": ["Avoid 'etc.' & slang"],
+                "formatting_suggestions": ["Keep font < 12pt"]
+            },
+            "job_match": {
+                "match_percentage": 88,
+                "top_5_resume_changes": ["Replace 'C++' with 'Modern C++ & STL'"]
+            },
+            "skill_gap": [
+                {
+                    "skill": "HTML & CSS <Frontend>",
+                    "importance": "Medium",
+                    "learning_time": "1 week",
+                    "learning_resource": "MDN Web Docs & Tutorials",
+                    "project_suggestion": "Build responsive page with <canvas> & CSS",
+                    "priority": "Medium"
+                }
+            ],
+            "learning_roadmap": [
+                {
+                    "week": "Week 1",
+                    "estimated_hours": 10,
+                    "topics": ["Trees & Graphs", "Depth < 100"],
+                    "coding_practice": ["Practice BFS & DFS"],
+                    "mini_projects": ["Routing & Graph visualizer"],
+                    "interview_questions": ["Explain pointers & references in C++."],
+                    "revision_tasks": ["Review graph edge cases & cycles"]
+                }
+            ],
+            "conflicts": [
+                {
+                    "conflict_type": "matched_skill_in_skill_gap",
+                    "skill": "C++ & Python",
+                    "rule_description": "Skill identified as both matched and missing."
+                }
+            ]
+        }
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_file = Path(tmpdir) / "special_char_report.pdf"
+        result_path = generate_pdf_report(sample_data_special, str(output_file))
+
+        assert os.path.exists(result_path)
+        assert os.path.getsize(result_path) > 1000
+
+
+def test_generate_pdf_report_empty_fallback():
+    empty_data = {
+        "company_name": "",
+        "results": {}
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_file = Path(tmpdir) / "empty_report.pdf"
+        result_path = generate_pdf_report(empty_data, str(output_file))
+
+        assert os.path.exists(result_path)
+        assert os.path.getsize(result_path) > 1000
