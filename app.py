@@ -318,7 +318,9 @@ def submit_interview_answer(analysis_id: str):
             "completed": is_completed
         }
 
-        if not is_completed:
+        if is_completed:
+            result_payload["summary"] = live_interview_agent.calculate_session_summary(answers_list)
+        else:
             result_payload["next_question"] = questions_list[next_question_index]
 
         return jsonify(result_payload)
@@ -340,13 +342,17 @@ def export_interview_json(analysis_id: str):
         return redirect(url_for("index"))
 
     company_name = analysis_record.get("company_name", "General") if analysis_record else "General"
+    answers_recorded = session.get("answers", [])
+    session_summary = live_interview_agent.calculate_session_summary(answers_recorded) if answers_recorded else {}
+
     export_data = {
         "analysis_id": analysis_id,
         "company_name": company_name,
         "completed": bool(session.get("completed", 0)),
         "total_questions": len(session.get("questions", [])),
-        "answers_recorded": len(session.get("answers", [])),
-        "transcript": session.get("answers", []),
+        "answers_recorded": len(answers_recorded),
+        "session_summary": session_summary,
+        "transcript": answers_recorded,
     }
 
     response = jsonify(export_data)

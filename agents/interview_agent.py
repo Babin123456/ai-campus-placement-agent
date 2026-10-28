@@ -72,6 +72,28 @@ class InterviewAgent:
             logger.info(f"InterviewAgent: Injecting {diff} fallback questions for '{label}' list.")
             return questions + defaults[:diff]
 
+    @staticmethod
+    def parse_score(value: Any, default: int = 50) -> int:
+        """
+        Parses score into an integer clamped between 0 and 100.
+        Handles floats (e.g. 85.5), strings with percentage (e.g. "85%"), and fraction formats.
+        """
+        if value is None:
+            return default
+        if isinstance(value, (int, float)):
+            try:
+                return max(0, min(100, int(round(value))))
+            except (ValueError, OverflowError):
+                return default
+        try:
+            val_str = str(value).strip().rstrip("%").strip()
+            if "/" in val_str:
+                num, denom = val_str.split("/", 1)
+                return max(0, min(100, int(round((float(num) / float(denom)) * 100))))
+            return max(0, min(100, int(round(float(val_str)))))
+        except (ValueError, TypeError, ZeroDivisionError):
+            return default
+
     def evaluate_answer(self, question_type: str, question: str, answer: str) -> Dict[str, Any]:
         """
         Performs a dynamic API evaluation call to score a single answer response.
@@ -103,21 +125,15 @@ class InterviewAgent:
                 prompt=prompt
             )
 
-            # Sanitize scores
-            conf = res.get("confidence_score", 50)
-            comm = res.get("communication_score", 50)
-            tech = res.get("technical_accuracy", 50)
-            try:
-                conf = int(conf)
-                comm = int(comm)
-                tech = int(tech)
-            except (ValueError, TypeError):
-                conf, comm, tech = 50, 50, 50
+            # Robust score sanitization
+            conf = self.parse_score(res.get("confidence_score"), 50)
+            comm = self.parse_score(res.get("communication_score"), 50)
+            tech = self.parse_score(res.get("technical_accuracy"), 50)
 
             return {
-                "confidence_score": max(0, min(100, conf)),
-                "communication_score": max(0, min(100, comm)),
-                "technical_accuracy": max(0, min(100, tech)),
+                "confidence_score": conf,
+                "communication_score": comm,
+                "technical_accuracy": tech,
                 "suggestions": self._sanitize_list(res.get("suggestions")) or ["Incorporate clear structured responses (STAR method)."],
                 "feedback": str(res.get("feedback", "Feedback generation completed."))
             }
@@ -134,3 +150,84 @@ class InterviewAgent:
                 ],
                 "feedback": f"Evaluation system was unable to analyze this response. Context: {str(e)}"
             }
+
+    def calculate_session_summary(self, answers_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Aggregates mock interview responses across all answered questions.
+        Computes overall performance, category-level breakdowns (HR, Technical, Behavioral),
+        and issues an overall readiness verdict with actionable feedback.
+        """
+        if not answers_list:
+            return {
+                "total_answered": 0,
+                "overall_score": 0,
+                "category_scores": {},
+                "readiness_verdict": "No answers recorded",
+                "summary_feedback": "No answers have been evaluated for this session yet."
+            }
+
+        categories: Dict[str, List[Dict[str, int]]] = {"HR": [], "Technical": [], "Behavioral": []}
+        all_tech = []
+        all_comm = []
+        all_conf = []
+
+        for item in answers_list:
+            q_type = str(item.get("type", "Technical")).capitalize()
+            target_key = "HR" if q_type.upper() == "HR" else q_type
+            if target_key not in categories:
+                categories[target_key] = []
+
+            eval_data = item.get("evaluation", {})
+            tech = self.parse_score(eval_data.get("technical_accuracy"), 50)
+            comm = self.parse_score(eval_data.get("communication_score"), 50)
+            conf = self.parse_score(eval_data.get("confidence_score"), 50)
+
+            all_tech.append(tech)
+            all_comm.append(comm)
+            all_conf.append(conf)
+
+            composite = int(round((tech + comm + conf) / 3))
+            categories[target_key].append({
+                "tech": tech,
+                "comm": comm,
+                "conf": conf,
+                "composite": composite
+            })
+
+        # Calculate category averages
+        category_breakdown = {}
+        for cat_name, scores in categories.items():
+            if scores:
+                avg_tech = int(round(sum(s["tech"] for s in scores) / len(scores)))
+                avg_comm = int(round(sum(s["comm"] for s in scores) / len(scores)))
+                avg_conf = int(round(sum(s["conf"] for s in scores) / len(scores)))
+                avg_comp = int(round(sum(s["composite"] for s in scores) / len(scores)))
+                category_breakdown[cat_name] = {
+                    "count": len(scores),
+                    "technical_accuracy": avg_tech,
+                    "communication_score": avg_comm,
+                    "confidence_score": avg_conf,
+                    "average_score": avg_comp
+                }
+
+        total_ans = len(answers_list)
+        overall_avg = int(round((sum(all_tech) + sum(all_comm) + sum(all_conf)) / (total_ans * 3))) if total_ans else 0
+
+        # Determine verdict
+        if overall_avg >= 80:
+            verdict = "Placement Ready"
+            summary_feedback = "Exceptional performance across technical depth and structured communication. Candidate exhibits high readiness for placement rounds."
+        elif overall_avg >= 65:
+            verdict = "Competent (Needs Targeted Polish)"
+            summary_feedback = "Solid foundational answers. Focus on incorporating quantitative impact metrics and practicing the STAR framework on behavioral questions."
+        else:
+            verdict = "Requires Active Preparation"
+            summary_feedback = "Further practice needed on technical fundamentals and concise response structuring. Review the 6-week roadmap topics."
+
+        return {
+            "total_answered": total_ans,
+            "overall_score": overall_avg,
+            "category_scores": category_breakdown,
+            "readiness_verdict": verdict,
+            "summary_feedback": summary_feedback
+        }

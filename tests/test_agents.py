@@ -91,3 +91,49 @@ def test_interview_agent_enforces_five_questions_per_category():
     assert len(processed["hr"]) == 5
     assert len(processed["technical"]) == 5
     assert len(processed["behavioral"]) == 5
+
+
+def test_interview_agent_parse_score():
+    agent = InterviewAgent()
+    assert agent.parse_score(85) == 85
+    assert agent.parse_score(82.6) == 83
+    assert agent.parse_score("90%") == 90
+    assert agent.parse_score("4/5") == 80
+    assert agent.parse_score(150) == 100
+    assert agent.parse_score(-10) == 0
+    assert agent.parse_score("invalid", default=50) == 50
+    assert agent.parse_score(None, default=50) == 50
+
+
+def test_interview_agent_calculate_session_summary():
+    agent = InterviewAgent()
+
+    # Empty answers list
+    empty_summary = agent.calculate_session_summary([])
+    assert empty_summary["total_answered"] == 0
+    assert empty_summary["overall_score"] == 0
+
+    # Realistic answer set across categories
+    answers = [
+        {
+            "type": "HR",
+            "evaluation": {"technical_accuracy": 80, "communication_score": 90, "confidence_score": 85}
+        },
+        {
+            "type": "Technical",
+            "evaluation": {"technical_accuracy": 95, "communication_score": 85, "confidence_score": 90}
+        },
+        {
+            "type": "Behavioral",
+            "evaluation": {"technical_accuracy": 70, "communication_score": 80, "confidence_score": 75}
+        }
+    ]
+
+    summary = agent.calculate_session_summary(answers)
+    assert summary["total_answered"] == 3
+    assert summary["overall_score"] >= 80
+    assert "HR" in summary["category_scores"]
+    assert "Technical" in summary["category_scores"]
+    assert "Behavioral" in summary["category_scores"]
+    assert summary["category_scores"]["Technical"]["technical_accuracy"] == 95
+    assert summary["readiness_verdict"] == "Placement Ready"
