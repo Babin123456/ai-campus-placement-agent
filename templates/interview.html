@@ -20,7 +20,10 @@
         <i class="fa-solid fa-graduation-cap"></i> AI Campus <span>Placement Agent</span>
       </a>
       <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-outline-secondary btn-sm rounded-circle p-2 theme-toggle-btn" title="Toggle theme">
+        <a href="/interview/{{ analysis_id }}/export" id="btnExportTranscript" class="btn btn-outline-primary btn-sm rounded-pill px-3" title="Download interview questions and feedback as JSON">
+          <i class="fa-solid fa-file-export me-1"></i> Export Q&A JSON
+        </a>
+        <button class="btn btn-outline-secondary btn-sm rounded-circle p-2 theme-toggle-btn" title="Toggle theme" aria-label="Toggle dark/light theme">
           <i class="fa-solid fa-moon"></i>
         </button>
         <a href="/dashboard/{{ analysis_id }}" id="btnBackToDashboard" class="btn btn-outline-secondary btn-sm rounded-pill px-4">
@@ -95,13 +98,16 @@
           {% if not interview.completed %}
             <form id="chatForm" data-question-index="{{ interview.current_question_index }}" data-analysis-id="{{ analysis_id }}" data-total-questions="{{ interview.questions|length }}">
               <div class="input-group">
-                <textarea id="answerInput" class="form-control rounded-start-3" rows="3" placeholder="Type your answer here... Be descriptive and structured (STAR method)."></textarea>
-                <button class="btn btn-outline-secondary px-3" type="button" id="btnMic" title="Voice answering (Speech-to-Text)">
+                <textarea id="answerInput" class="form-control rounded-start-3" rows="3" placeholder="Type your answer here... Be descriptive and structured (STAR method)." aria-label="Type your interview answer"></textarea>
+                <button class="btn btn-outline-secondary px-3" type="button" id="btnMic" title="Voice answering (Speech-to-Text)" aria-label="Voice input toggle">
                   <i class="fa-solid fa-microphone"></i>
                 </button>
-                <button class="btn btn-custom-primary px-4 rounded-end-3" type="submit">Submit Answer</button>
+                <button class="btn btn-custom-primary px-4 rounded-end-3" type="submit" aria-label="Submit interview answer">Submit Answer</button>
               </div>
-              <small class="text-muted d-block mt-2">Take your time. You can write multiple sentences. We grade technical correctness, communication structure, and confidence indicators.</small>
+              <div class="d-flex justify-content-between align-items-center mt-2">
+                <small class="text-muted">Press <kbd>Ctrl+Enter</kbd> to submit. Recommended: 30+ words for complete evaluation.</small>
+                <small id="wordCountBadge" class="text-secondary fw-semibold">0 words</small>
+              </div>
             </form>
           {% endif %}
         </div>
@@ -183,6 +189,67 @@
 
     </div>
   </main>
+
+  <!-- Completion Modal -->
+  <div class="modal fade" id="completionModal" tabindex="-1" aria-labelledby="completionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold" id="completionModalLabel">
+            <i class="fa-solid fa-trophy text-warning me-2"></i> Mock Interview Completed!
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 text-center">
+          <div class="mb-3">
+            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill py-2 px-3 fw-semibold" id="modalVerdictBadge">
+              Placement Ready
+            </span>
+          </div>
+          <h2 class="fw-bold mb-2">Overall Interview Score: <span id="modalOverallScore" class="text-primary">--</span>/100</h2>
+          <p class="text-secondary small mb-4" id="modalSummaryFeedback">
+            Congratulations on completing your mock placement interview session! Review your performance metrics below.
+          </p>
+
+          <div class="row g-3 justify-content-center mb-4 text-start">
+            <div class="col-md-4">
+              <div class="card bg-light border-0 p-3 rounded-3 text-center">
+                <span class="small text-muted fw-semibold">HR Evaluation</span>
+                <h4 class="fw-bold my-1 text-primary" id="modalHrScore">--</h4>
+                <span class="small text-secondary">Communication clarity</span>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card bg-light border-0 p-3 rounded-3 text-center">
+                <span class="small text-muted fw-semibold">Technical Round</span>
+                <h4 class="fw-bold my-1 text-primary" id="modalTechScore">--</h4>
+                <span class="small text-secondary">Technical accuracy</span>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card bg-light border-0 p-3 rounded-3 text-center">
+                <span class="small text-muted fw-semibold">Behavioral Round</span>
+                <h4 class="fw-bold my-1 text-primary" id="modalBehScore">--</h4>
+                <span class="small text-secondary">STAR structure</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex flex-wrap justify-content-center gap-2 pt-2 border-top">
+            <a href="/interview/{{ analysis_id }}/export" class="btn btn-outline-primary rounded-pill px-4">
+              <i class="fa-solid fa-download me-1"></i> Download Q&A JSON
+            </a>
+            <a href="/certificate/{{ analysis_id }}" class="btn btn-outline-success rounded-pill px-4">
+              <i class="fa-solid fa-award me-1"></i> View Certificate
+            </a>
+            <a href="/dashboard/{{ analysis_id }}" class="btn btn-primary rounded-pill px-4">
+              <i class="fa-solid fa-gauge me-1"></i> Return to Dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Footer -->
   <footer class="bg-white border-top py-4 mt-auto">

@@ -16,7 +16,7 @@ from utils.database import (
     get_interview_session,
     update_interview_session
 )
-from utils.pdf_reader import extract_text_from_pdf
+from utils.pdf_reader import extract_text_from_pdf, validate_resume_text, MAX_RESUME_TEXT_CHARS
 from utils.report_generator import generate_pdf_report
 from agents.coordinator import CoordinatorAgent
 from agents.interview_agent import InterviewAgent
@@ -135,7 +135,11 @@ def analyze():
         resume_filename = "pasted_resume.txt"
 
         if pasted_text:
-            extracted_resume_text = pasted_text
+            is_valid, validation_msg = validate_resume_text(pasted_text)
+            if not is_valid:
+                flash(validation_msg, "error")
+                return redirect(url_for("index"))
+            extracted_resume_text = pasted_text[:MAX_RESUME_TEXT_CHARS]
             resume_filename = "Pasted_Resume.txt"
         elif uploaded_file and uploaded_file.filename != "":
             if not uploaded_file.filename.lower().endswith(".pdf"):
@@ -153,6 +157,8 @@ def analyze():
 
         selected_company = request.form.get("company", "General").strip()
         job_description = request.form.get("job_description", "").strip()
+        if len(job_description) > 15000:
+            job_description = job_description[:15000]
 
         # Execute coordinated multi-agent analysis via single Gemini call
         analysis_payload = coordinator_agent.analyze(
@@ -173,6 +179,10 @@ def analyze():
         # Redirect user directly to their new placement analysis dashboard
         return redirect(url_for("dashboard", analysis_id=file_uuid))
 
+    except ValueError as ve:
+        logger.warning(f"Validation error in analysis workflow: {str(ve)}")
+        flash(str(ve), "error")
+        return redirect(url_for("index"))
     except Exception as e:
         logger.error(f"Analysis workflow crashed: {str(e)}")
         flash(f"Analysis Failed: {str(e)}", "error")
@@ -309,7 +319,9 @@ def submit_interview_answer(analysis_id: str):
             "completed": is_completed
         }
 
-        if not is_completed:
+        if is_completed:
+            result_payload["summary"] = live_interview_agent.calculate_session_summary(answers_list)
+        else:
             result_payload["next_question"] = questions_list[next_question_index]
 
         return jsonify(result_payload)
@@ -331,13 +343,17 @@ def export_interview_json(analysis_id: str):
         return redirect(url_for("index"))
 
     company_name = analysis_record.get("company_name", "General") if analysis_record else "General"
+    answers_recorded = session.get("answers", [])
+    session_summary = live_interview_agent.calculate_session_summary(answers_recorded) if answers_recorded else {}
+
     export_data = {
         "analysis_id": analysis_id,
         "company_name": company_name,
         "completed": bool(session.get("completed", 0)),
         "total_questions": len(session.get("questions", [])),
-        "answers_recorded": len(session.get("answers", [])),
-        "transcript": session.get("answers", []),
+        "answers_recorded": len(answers_recorded),
+        "session_summary": session_summary,
+        "transcript": answers_recorded,
     }
 
     response = jsonify(export_data)

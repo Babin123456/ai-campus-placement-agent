@@ -9,7 +9,6 @@ First, check our comprehensive documentation:
 - 📖 [README.md](README.md) - Project overview, features, and getting started guide
 - 📝 [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute to the project
 - 🔒 [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
-- 📋 [CHANGELOG.md](CHANGELOG.md) - Version history and updates
 
 ## Community Support
 
