@@ -5,6 +5,7 @@ import logging
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from werkzeug.utils import secure_filename
 
+
 import config
 from utils.database import (
     init_db,
