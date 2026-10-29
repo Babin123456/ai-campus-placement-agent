@@ -49,6 +49,38 @@ def test_job_match_agent_processing():
     assert processed["match_percentage"] == 75
     assert len(processed["top_5_resume_changes"]) <= 5
     assert "Python" in processed["matched_skills"]
+    assert "company_benchmark" in processed
+
+
+def test_job_match_agent_company_benchmarks():
+    agent = JobMatchAgent()
+    raw = {
+        "match_percentage": 85,
+        "matched_skills": ["Python", "DSA"],
+        "missing_skills": [],
+    }
+
+    # Test Tier 1 Exceeded
+    tier1_res = agent.process(raw, company_name="Google", ats_score=90)
+    bm1 = tier1_res["company_benchmark"]
+    assert "Tier 1" in bm1["tier_name"]
+    assert bm1["status"] == "Benchmark Exceeded"
+    assert bm1["target_ats"] == 80
+    assert bm1["target_match"] == 75
+
+    # Test Tier 3 Met
+    tier3_raw = {"match_percentage": 60, "matched_skills": ["Java"]}
+    tier3_res = agent.process(tier3_raw, company_name="Infosys", ats_score=62)
+    bm3 = tier3_res["company_benchmark"]
+    assert "Tier 3" in bm3["tier_name"]
+    assert bm3["status"] in ("Benchmark Met", "Benchmark Exceeded")
+    assert bm3["target_ats"] == 65
+
+    # Test Below Benchmark
+    below_res = agent.process({"match_percentage": 30}, company_name="Amazon", ats_score=45)
+    bm_below = below_res["company_benchmark"]
+    assert bm_below["status"] == "Below Benchmark"
+    assert bm_below["badge"] == "warning"
 
 
 def test_skill_gap_agent_processing():
