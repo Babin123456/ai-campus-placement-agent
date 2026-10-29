@@ -15,6 +15,7 @@ def get_db_connection() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 def init_db() -> None:
@@ -49,6 +50,10 @@ def init_db() -> None:
                 FOREIGN KEY (analysis_id) REFERENCES analyses (id)
             )
         """)
+        
+        # Indexes for query and sorting performance
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_analyses_created_at ON analyses (created_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_analysis_id ON interviews (analysis_id)")
         
         conn.commit()
         logger.info("Database schema checked and initialized successfully.")
@@ -155,6 +160,62 @@ def update_interview_session(interview_id: str, current_question_index: int, ans
         logger.info(f"Interview session {interview_id} updated. Current index: {current_question_index}. Completed: {completed}")
     except Exception as e:
         logger.error(f"Error updating interview session {interview_id}: {str(e)}")
+        raise e
+    finally:
+        conn.close()
+
+def get_recent_analyses(limit: int = 10) -> list:
+    """
+    Retrieves the most recent analysis sessions ordered by created_at DESC.
+    Includes parsed resume ATS score and company match percentage for quick display.
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, resume_filename, company_name, job_description, results_json, created_at
+            FROM analyses
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (max(1, min(limit, 50)),))
+        rows = cursor.fetchall()
+        recent = []
+        for row in rows:
+            record = dict(row)
+            try:
+                parsed_results = json.loads(record.pop("results_json", "{}"))
+                resume_analysis = parsed_results.get("resume_analysis", {})
+                job_match = parsed_results.get("job_match", {})
+                record["ats_score"] = resume_analysis.get("ats_score", 0)
+                record["match_percentage"] = job_match.get("match_percentage", 0)
+            except Exception:
+                record["ats_score"] = 0
+                record["match_percentage"] = 0
+            recent.append(record)
+        return recent
+    except Exception as e:
+        logger.error(f"Error fetching recent analyses: {str(e)}")
+        raise e
+    finally:
+        conn.close()
+
+def delete_analysis(analysis_id: str) -> bool:
+    """
+    Deletes an analysis record and its corresponding interview sessions.
+    Returns True if an analysis was deleted, False if not found.
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM interviews WHERE analysis_id = ?", (analysis_id,))
+        cursor.execute("DELETE FROM analyses WHERE id = ?", (analysis_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+        if deleted:
+            logger.info(f"Deleted analysis {analysis_id} and associated interview data.")
+        return deleted
+    except Exception as e:
+        logger.error(f"Error deleting analysis {analysis_id}: {str(e)}")
         raise e
     finally:
         conn.close()
