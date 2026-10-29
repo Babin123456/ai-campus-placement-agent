@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initMockInterview();
   initCompanyExplorer();
   initSkillGapFilter();
+  initRoadmapTracker();
 });
 
 function initThemeToggle() {
@@ -98,6 +99,89 @@ function initSkillGapFilter() {
       applyFilter();
     }
   });
+}
+
+/**
+ * Tracks interactive checklist tasks on the 6-Week Learning Roadmap
+ * and persists completed task IDs in localStorage per analysis session.
+ */
+function initRoadmapTracker() {
+  const container = document.getElementById("dashboardContainer");
+  if (!container) return;
+
+  const analysisId = container.getAttribute("data-analysis-id");
+  if (!analysisId) return;
+
+  const storageKey = `roadmap_tasks_${analysisId}`;
+  let completedTasks = new Set();
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      completedTasks = new Set(JSON.parse(saved));
+    }
+  } catch (e) {
+    console.warn("Could not load roadmap progress from localStorage:", e);
+  }
+
+  const allCheckboxes = document.querySelectorAll(".roadmap-task-check");
+  const weekCards = document.querySelectorAll(".week-card");
+  const overallLabel = document.getElementById("overallRoadmapProgressLabel");
+  const overallBar = document.getElementById("overallRoadmapProgressBar");
+
+  function updateVisuals() {
+    let totalAll = allCheckboxes.length;
+    let checkedAll = 0;
+
+    weekCards.forEach((card) => {
+      const checksInWeek = card.querySelectorAll(".roadmap-task-check");
+      let checkedInWeek = 0;
+      checksInWeek.forEach((cb) => {
+        if (cb.checked) checkedInWeek++;
+      });
+
+      const pct = checksInWeek.length > 0 ? Math.round((checkedInWeek / checksInWeek.length) * 100) : 0;
+      const bar = card.querySelector(".week-progress-bar");
+      const label = card.querySelector(".week-progress-label");
+      if (bar) bar.style.width = `${pct}%`;
+      if (label) label.innerText = `${pct}%`;
+
+      checkedAll += checkedInWeek;
+    });
+
+    const overallPct = totalAll > 0 ? Math.round((checkedAll / totalAll) * 100) : 0;
+    if (overallLabel) overallLabel.innerText = `${overallPct}%`;
+    if (overallBar) overallBar.style.width = `${overallPct}%`;
+  }
+
+  allCheckboxes.forEach((cb) => {
+    const taskId = cb.getAttribute("data-task-id");
+    if (taskId && completedTasks.has(taskId)) {
+      cb.checked = true;
+      const span = cb.parentElement?.querySelector("span");
+      if (span) span.style.textDecoration = "line-through";
+    }
+
+    cb.addEventListener("change", () => {
+      const span = cb.parentElement?.querySelector("span");
+      if (cb.checked) {
+        if (taskId) completedTasks.add(taskId);
+        if (span) span.style.textDecoration = "line-through";
+      } else {
+        if (taskId) completedTasks.delete(taskId);
+        if (span) span.style.textDecoration = "none";
+      }
+
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(completedTasks)));
+      } catch (e) {
+        console.warn("Failed saving roadmap task progress to localStorage:", e);
+      }
+
+      updateVisuals();
+    });
+  });
+
+  updateVisuals();
 }
 
 function initCompanyExplorer() {
