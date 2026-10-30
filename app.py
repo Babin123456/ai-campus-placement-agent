@@ -5,12 +5,15 @@ import logging
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from werkzeug.utils import secure_filename
 
+
 import config
 from utils.database import (
     init_db,
     get_db_connection,
     save_analysis,
     get_analysis,
+    get_recent_analyses,
+    delete_analysis,
     create_interview_session,
     get_interview_session,
     update_interview_session
@@ -411,6 +414,49 @@ def download_pdf_report(analysis_id: str):
         logger.error(f"Failed to generate and serve PDF report: {str(e)}")
         flash(f"Error compiling report file: {str(e)}", "error")
         return redirect(url_for("dashboard", analysis_id=analysis_id))
+
+@app.route("/api/analyses/recent", methods=["GET"])
+def api_recent_analyses():
+    """
+    Returns a list of recent placement analyses ordered by timestamp descending.
+    """
+    try:
+        limit = request.args.get("limit", default=10, type=int)
+        analyses = get_recent_analyses(limit=limit)
+        return jsonify({
+            "status": "success",
+            "count": len(analyses),
+            "analyses": analyses
+        }), 200
+    except Exception as e:
+        logger.error(f"Error fetching recent analyses: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Failed to retrieve recent analyses."
+        }), 500
+
+@app.route("/api/analysis/<analysis_id>", methods=["DELETE"])
+def api_delete_analysis(analysis_id: str):
+    """
+    Deletes an analysis session and related mock interview records.
+    """
+    try:
+        deleted = delete_analysis(analysis_id)
+        if not deleted:
+            return jsonify({
+                "status": "error",
+                "message": f"Analysis with ID {analysis_id} not found."
+            }), 404
+        return jsonify({
+            "status": "success",
+            "message": f"Analysis {analysis_id} deleted successfully."
+        }), 200
+    except Exception as e:
+        logger.error(f"Error deleting analysis {analysis_id}: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Failed to delete analysis record."
+        }), 500
 
 if __name__ == "__main__":
     # Boot Flask server locally on default port 5000
