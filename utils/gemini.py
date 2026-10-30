@@ -23,13 +23,38 @@ def get_gemini_client() -> genai.Client:
 
 def _extract_json_string(text: str) -> str:
     """
-    Cleans markdown code fences and returns the isolated JSON string.
+    Cleans markdown code fences, strips conversational preambles/postambles,
+    and returns the isolated JSON string.
     """
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\s*```$", "", cleaned)
-        cleaned = cleaned.strip()
+    if not text:
+        return ""
+
+    cleaned = text.strip().lstrip("\ufeff")
+
+    # 1. Search for markdown code fence anywhere in the response
+    fence_pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
+    match = re.search(fence_pattern, cleaned, flags=re.IGNORECASE)
+    if match:
+        candidate = match.group(1).strip()
+        # Verify the candidate starts and ends with JSON structural delimiters
+        if (candidate.startswith("{") and candidate.endswith("}")) or (
+            candidate.startswith("[") and candidate.endswith("]")
+        ):
+            return candidate
+
+    # 2. If no valid fence, extract the outermost object { ... }
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace != -1 and last_brace > first_brace:
+        return cleaned[first_brace : last_brace + 1].strip()
+
+    # 3. Check for outermost array [ ... ]
+    first_bracket = cleaned.find("[")
+    last_bracket = cleaned.rfind("]")
+    if first_bracket != -1 and last_bracket > first_bracket:
+        return cleaned[first_bracket : last_bracket + 1].strip()
+
+    # 4. Fallback: Return original stripped string
     return cleaned
 
 

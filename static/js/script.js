@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initMockInterview();
   initCompanyExplorer();
   initSkillGapFilter();
+  initRecentAnalysesDrawer();
 });
 
 function initThemeToggle() {
@@ -98,6 +99,89 @@ function initSkillGapFilter() {
       applyFilter();
     }
   });
+}
+
+/**
+ * Tracks interactive checklist tasks on the 6-Week Learning Roadmap
+ * and persists completed task IDs in localStorage per analysis session.
+ */
+function initRoadmapTracker() {
+  const container = document.getElementById("dashboardContainer");
+  if (!container) return;
+
+  const analysisId = container.getAttribute("data-analysis-id");
+  if (!analysisId) return;
+
+  const storageKey = `roadmap_tasks_${analysisId}`;
+  let completedTasks = new Set();
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      completedTasks = new Set(JSON.parse(saved));
+    }
+  } catch (e) {
+    console.warn("Could not load roadmap progress from localStorage:", e);
+  }
+
+  const allCheckboxes = document.querySelectorAll(".roadmap-task-check");
+  const weekCards = document.querySelectorAll(".week-card");
+  const overallLabel = document.getElementById("overallRoadmapProgressLabel");
+  const overallBar = document.getElementById("overallRoadmapProgressBar");
+
+  function updateVisuals() {
+    let totalAll = allCheckboxes.length;
+    let checkedAll = 0;
+
+    weekCards.forEach((card) => {
+      const checksInWeek = card.querySelectorAll(".roadmap-task-check");
+      let checkedInWeek = 0;
+      checksInWeek.forEach((cb) => {
+        if (cb.checked) checkedInWeek++;
+      });
+
+      const pct = checksInWeek.length > 0 ? Math.round((checkedInWeek / checksInWeek.length) * 100) : 0;
+      const bar = card.querySelector(".week-progress-bar");
+      const label = card.querySelector(".week-progress-label");
+      if (bar) bar.style.width = `${pct}%`;
+      if (label) label.innerText = `${pct}%`;
+
+      checkedAll += checkedInWeek;
+    });
+
+    const overallPct = totalAll > 0 ? Math.round((checkedAll / totalAll) * 100) : 0;
+    if (overallLabel) overallLabel.innerText = `${overallPct}%`;
+    if (overallBar) overallBar.style.width = `${overallPct}%`;
+  }
+
+  allCheckboxes.forEach((cb) => {
+    const taskId = cb.getAttribute("data-task-id");
+    if (taskId && completedTasks.has(taskId)) {
+      cb.checked = true;
+      const span = cb.parentElement?.querySelector("span");
+      if (span) span.style.textDecoration = "line-through";
+    }
+
+    cb.addEventListener("change", () => {
+      const span = cb.parentElement?.querySelector("span");
+      if (cb.checked) {
+        if (taskId) completedTasks.add(taskId);
+        if (span) span.style.textDecoration = "line-through";
+      } else {
+        if (taskId) completedTasks.delete(taskId);
+        if (span) span.style.textDecoration = "none";
+      }
+
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(completedTasks)));
+      } catch (e) {
+        console.warn("Failed saving roadmap task progress to localStorage:", e);
+      }
+
+      updateVisuals();
+    });
+  });
+
+  updateVisuals();
 }
 
 function initCompanyExplorer() {
@@ -505,4 +589,106 @@ function initMockInterview() {
     const bsModal = new bootstrap.Modal(modalEl);
     bsModal.show();
   }
+}
+
+/**
+ * Loads recent analyses from /api/analyses/recent and renders them inside the offcanvas drawer.
+ */
+function initRecentAnalysesDrawer() {
+  const drawerEl = document.getElementById("offcanvasRecentAnalyses");
+  const listEl = document.getElementById("recentAnalysesList");
+  if (!drawerEl || !listEl) return;
+
+  async function loadRecentAnalyses() {
+    listEl.innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+        <p class="small mb-0">Loading recent evaluations...</p>
+      </div>
+    `;
+
+    try {
+      const response = await fetch("/api/analyses/recent?limit=10");
+      if (!response.ok) throw new Error("Network response was not ok");
+      const data = await response.json();
+
+      if (!data.analyses || data.analyses.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-center py-5 text-secondary">
+            <i class="fa-solid fa-folder-open fa-2x mb-3 text-muted"></i>
+            <h6 class="fw-bold mb-1">No Recent Analyses</h6>
+            <p class="small text-muted mb-0">Upload a resume to generate your first placement report.</p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = "";
+      data.analyses.forEach((a) => {
+        const card = document.createElement("div");
+        card.className = "card border rounded-3 p-3 shadow-sm bg-body";
+        const dateStr = a.created_at ? new Date(a.created_at).toLocaleDateString() : "";
+
+        card.innerHTML = `
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="badge bg-primary-subtle text-primary fw-bold me-1">${escapeHtml(a.company_name)}</span>
+              <span class="badge bg-secondary-subtle text-secondary small">${dateStr}</span>
+            </div>
+            <button class="btn btn-outline-danger btn-sm border-0 rounded-circle delete-analysis-btn" data-id="${a.id}" title="Delete Analysis">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+          <div class="small text-truncate fw-semibold mb-2" title="${escapeHtml(a.resume_filename)}">
+            <i class="fa-solid fa-file-pdf text-danger me-1"></i> ${escapeHtml(a.resume_filename)}
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-3 small">
+            <span class="badge bg-success-subtle text-success">ATS: ${a.ats_score}%</span>
+            <span class="badge bg-info-subtle text-info">Match: ${a.match_percentage}%</span>
+          </div>
+          <a href="/dashboard/${a.id}" class="btn btn-sm btn-outline-primary rounded-pill w-100">
+            <i class="fa-solid fa-chart-pie me-1"></i> View Report
+          </a>
+        `;
+        listEl.appendChild(card);
+      });
+
+      // Hook up delete buttons
+      listEl.querySelectorAll(".delete-analysis-btn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const analysisId = btn.getAttribute("data-id");
+          if (!confirm("Are you sure you want to delete this placement analysis?")) return;
+
+          try {
+            const delRes = await fetch(`/api/analysis/${analysisId}`, { method: "DELETE" });
+            if (delRes.ok) {
+              loadRecentAnalyses();
+            } else {
+              alert("Failed to delete the analysis record.");
+            }
+          } catch (err) {
+            console.error("Error deleting analysis:", err);
+            alert("Error deleting analysis.");
+          }
+        });
+      });
+    } catch (err) {
+      console.warn("Could not load recent analyses:", err);
+      listEl.innerHTML = `
+        <div class="text-center py-4 text-muted">
+          <p class="small mb-0">No past sessions found or service unavailable.</p>
+        </div>
+      `;
+    }
+  }
+
+  drawerEl.addEventListener("show.bs.offcanvas", loadRecentAnalyses);
+}
+
+function escapeHtml(text) {
+  if (!text) return "";
+  const div = document.createElement("div");
+  div.innerText = text;
+  return div.innerHTML;
 }
