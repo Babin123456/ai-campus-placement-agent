@@ -20,6 +20,9 @@
         <i class="fa-solid fa-graduation-cap"></i> AI Campus <span>Placement Agent</span>
       </a>
       <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-primary btn-sm rounded-pill px-3" data-bs-toggle="offcanvas" data-bs-target="#offcanvasRecentAnalyses" aria-controls="offcanvasRecentAnalyses" id="btnOpenRecentAnalyses">
+          <i class="fa-solid fa-clock-rotate-left me-1"></i> Recent Analyses
+        </button>
         <span class="badge bg-light text-primary border border-primary-subtle py-2 px-3 rounded-pill">Open Source Project</span>
         <button class="btn btn-outline-secondary btn-sm rounded-circle p-2 theme-toggle-btn" title="Toggle theme">
           <i class="fa-solid fa-moon"></i>
@@ -235,6 +238,24 @@
         </div>
         <div class="modal-body p-4" id="companyModalBody">
           <div class="text-center py-4"><span class="spinner-border text-primary" role="status"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Analyses Offcanvas Drawer -->
+  <div class="offcanvas offcanvas-end shadow" tabindex="-1" id="offcanvasRecentAnalyses" aria-labelledby="offcanvasRecentLabel">
+    <div class="offcanvas-header border-bottom">
+      <h5 class="offcanvas-title fw-bold" id="offcanvasRecentLabel">
+        <i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Recent Analyses
+      </h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body p-3">
+      <div id="recentAnalysesList" class="d-flex flex-column gap-3">
+        <div class="text-center py-5 text-muted" id="recentAnalysesLoading">
+          <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+          <p class="small mb-0">Loading past sessions...</p>
         </div>
       </div>
     </div>

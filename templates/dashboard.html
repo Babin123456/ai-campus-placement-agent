@@ -103,6 +103,73 @@
       </div>
     </div>
 
+    <!-- Company Hiring Readiness Benchmark Card -->
+    {% set benchmark = analysis.results.job_match.get('company_benchmark') if analysis.results.job_match is mapping else none %}
+    <div class="card glass-card p-4 border-0 mb-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+          <span class="text-primary fw-semibold text-uppercase small">Hiring Readiness Benchmark</span>
+          <h4 class="fw-bold mb-0">
+            <i class="fa-solid fa-building-columns text-primary me-2"></i> {{ analysis.company_name }} Recruitment Bar
+          </h4>
+        </div>
+        <div>
+          {% if benchmark %}
+            <span class="badge bg-{{ benchmark.badge }}-subtle text-{{ benchmark.badge }} border border-{{ benchmark.badge }}-subtle px-3 py-2 rounded-pill fs-6">
+              <i class="fa-solid fa-circle-check me-1"></i> {{ benchmark.status }}
+            </span>
+          {% else %}
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill fs-6">
+              <i class="fa-solid fa-chart-line me-1"></i> Placement Benchmark
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="row g-4 align-items-center mt-1">
+        <div class="col-lg-6">
+          <p class="text-secondary mb-3 small">
+            {{ benchmark.assessment if benchmark else 'Evaluation against typical campus recruitment benchmarks for ' ~ analysis.company_name ~ '.' }}
+          </p>
+          <div class="p-3 rounded-3 bg-light-subtle border small">
+            <i class="fa-solid fa-lightbulb text-warning me-2"></i>
+            <strong>Preparation Guidance:</strong>
+            <span class="text-secondary d-block mt-1">
+              {{ benchmark.guidance if benchmark else 'Focus on strengthening identified missing technical skills and quantifying project impacts on your resume.' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="fw-semibold">ATS Profile Score</span>
+              <span>
+                <strong class="text-dark">{{ analysis.results.resume_analysis.ats_score }}</strong> /
+                <span class="text-muted">Target: {{ benchmark.target_ats if benchmark else 75 }}</span>
+              </span>
+            </div>
+            <div class="progress rounded-pill" style="height: 10px;">
+              <div class="progress-bar bg-success" role="progressbar" style="width: {{ analysis.results.resume_analysis.ats_score }}%"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="fw-semibold">Job Description Match</span>
+              <span>
+                <strong class="text-primary">{{ analysis.results.job_match.match_percentage }}%</strong> /
+                <span class="text-muted">Target: {{ benchmark.target_match if benchmark else 65 }}%</span>
+              </span>
+            </div>
+            <div class="progress rounded-pill" style="height: 10px;">
+              <div class="progress-bar bg-primary" role="progressbar" style="width: {{ analysis.results.job_match.match_percentage }}%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Resume Feedback Panel -->
     <div class="row g-4 mb-4">
       
@@ -278,7 +345,18 @@
 
     <!-- Learning Roadmap Timeline -->
     <div class="card glass-card p-4 border-0 mb-4">
-      <h4 class="fw-bold mb-4"><i class="fa-solid fa-route text-primary me-2"></i> 6-Week Learning Roadmap</h4>
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <h4 class="fw-bold mb-0"><i class="fa-solid fa-route text-primary me-2"></i> 6-Week Learning Roadmap</h4>
+        <div class="d-flex align-items-center gap-3">
+          <div class="small text-secondary">
+            <span>Overall Syllabus Progress: </span>
+            <span id="overallRoadmapProgressLabel" class="fw-bold text-success">0%</span>
+          </div>
+          <div class="progress rounded-pill" style="width: 140px; height: 10px;">
+            <div id="overallRoadmapProgressBar" class="progress-bar bg-success" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
       <div class="timeline-wrapper">
         {% for w in analysis.results.learning_roadmap %}
           <div class="timeline-node">

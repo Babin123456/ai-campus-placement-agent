@@ -4,8 +4,11 @@ from pathlib import Path
 import config
 from utils.database import (
     create_interview_session,
+    delete_analysis,
     get_analysis,
+    get_db_connection,
     get_interview_session,
+    get_recent_analyses,
     init_db,
     save_analysis,
     update_interview_session,
@@ -56,3 +59,52 @@ def test_database_lifecycle(monkeypatch):
         updated_session = get_interview_session(analysis_id)
         assert updated_session["completed"] == 1
         assert len(updated_session["answers"]) == 1
+
+
+def test_recent_analyses_and_deletion(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_db_path = Path(tmpdir) / "test_placement.db"
+        monkeypatch.setattr(config, "DATABASE_PATH", test_db_path)
+
+        init_db()
+
+        # Save 3 records
+        for i in range(1, 4):
+            save_analysis(
+                analysis_id=f"id-{i}",
+                resume_filename=f"resume_{i}.pdf",
+                company_name=f"Company {i}",
+                job_description="Engineer",
+                results_dict={
+                    "resume_analysis": {"ats_score": 70 + i * 5},
+                    "job_match": {"match_percentage": 80 + i},
+                },
+            )
+
+        recent = get_recent_analyses(limit=2)
+        assert len(recent) == 2
+        assert "ats_score" in recent[0]
+        assert "match_percentage" in recent[0]
+
+        # Test deletion
+        assert delete_analysis("id-2") is True
+        assert get_analysis("id-2") is None
+        # Deleting non-existent returns False
+        assert delete_analysis("id-999") is False
+
+
+def test_database_indexes_created(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_db_path = Path(tmpdir) / "test_placement.db"
+        monkeypatch.setattr(config, "DATABASE_PATH", test_db_path)
+
+        init_db()
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='index'")
+        indexes = {row["name"] for row in cursor.fetchall()}
+        conn.close()
+
+        assert "idx_analyses_created_at" in indexes
+        assert "idx_interviews_analysis_id" in indexes

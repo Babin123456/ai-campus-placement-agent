@@ -87,7 +87,11 @@ class CoordinatorAgent:
 
         # 5. Hand over subsections to specialized sub-agents for parsing & structural safety
         processed_resume = self.resume_agent.process(resume_block)
-        processed_job_match = self.job_match_agent.process(job_match_block)
+        processed_job_match = self.job_match_agent.process(
+            job_match_block,
+            company_name=company_name,
+            ats_score=processed_resume.get("ats_score", 70)
+        )
         processed_skill_gap = self.skill_gap_agent.process(skill_gap_block)
         processed_roadmap = self.roadmap_agent.process(roadmap_block)
         processed_interview = self.interview_agent.process(interview_block)
