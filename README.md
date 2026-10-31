@@ -208,7 +208,6 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## Community & Support
 
-- 📖 [Documentation](README.md)
 - 🆘 [Support Guide](SUPPORT.md) - Get help and common solutions
 - 🐛 [Issue Tracker](https://github.com/deepikagandla74/ai-campus-placement-agent/issues)
 

@@ -265,6 +265,7 @@ def generate_pdf_report(analysis_data: dict, output_path: str) -> str:
         )
         story.append(Spacer(1, 10))
 
+        results = analysis_data.get("results", {})
         skill_gaps = results.get("skill_gap", [])
         if skill_gaps:
             gap_table_data = [
