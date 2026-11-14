@@ -47,6 +47,11 @@
         <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-2 px-sm-3" id="btnShareProfileModal" data-bs-toggle="modal" data-bs-target="#shareProfileModal">
           <i class="fa-solid fa-share-nodes me-1"></i> Share
         </button>
+        {% if comparison is defined and comparison and comparison.has_previous %}
+        <a href="{{ url_for('compare_with_previous_analysis_view', analysis_id=analysis_id) }}" class="btn btn-outline-primary btn-sm rounded-pill px-2 px-sm-3" id="btnNavComparePrevious" title="Compare with my previous analysis">
+          <i class="fa-solid fa-code-compare me-1"></i> <span class="d-none d-sm-inline">Compare with</span> Previous
+        </a>
+        {% endif %}
         <a href="/download/{{ analysis_id }}" class="btn btn-custom-primary btn-sm rounded-pill px-2 px-sm-3">
           <i class="fa-solid fa-download me-1"></i> <span class="d-none d-sm-inline">Download</span> PDF
         </a>
@@ -56,6 +61,38 @@
 
   <!-- Dashboard Content -->
   <main class="container py-5 fade-in" id="dashboardContainer" tabindex="-1" data-analysis-id="{{ analysis_id }}" data-company="{{ analysis.company_name }}" data-date="{{ analysis.created_at }}">
+    
+    <!-- Revision Comparison Notification Banner (#297) -->
+    {% if comparison is defined and comparison and comparison.has_previous %}
+    <div class="alert alert-info border-0 shadow-sm rounded-4 mb-4 p-3 d-flex flex-wrap align-items-center justify-content-between gap-3" id="comparePreviousBanner" role="region" aria-label="Resume Revision Comparison Alert">
+      <div class="d-flex align-items-center gap-3">
+        <div class="badge-icon-box bg-white text-primary rounded-circle p-2 shadow-sm d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+          <i class="fa-solid fa-code-compare fs-4"></i>
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary rounded-pill px-2 py-1 small">Resume Revision Detected</span>
+            <span class="badge bg-{{ comparison.badge_class }}-subtle text-{{ comparison.badge_class }} border border-{{ comparison.badge_class }}-subtle rounded-pill px-2 py-1 small" id="compareBadge">
+              {{ comparison.badge_text }}
+            </span>
+          </div>
+          <h6 class="fw-bold text-dark mb-0 mt-1">
+            We found a previous analysis for {{ comparison.target_role }} at {{ comparison.company_name }}.
+          </h6>
+          <p class="text-muted small mb-0">
+            ATS Score: <strong>{{ comparison.ats_previous }}/100</strong> &rarr; <strong>{{ comparison.ats_current }}/100</strong>
+            ({{ '+' if comparison.score_difference > 0 else '' }}{{ comparison.score_difference }} pts)
+            &bull; {{ comparison.skills_added|length }} skills added &bull; {{ comparison.weaknesses_fixed|length }} weaknesses fixed
+          </p>
+        </div>
+      </div>
+      <div>
+        <a href="{{ url_for('compare_with_previous_analysis_view', analysis_id=analysis_id) }}" class="btn btn-primary rounded-pill px-4 py-2 shadow-sm fw-semibold" id="btnComparePrevious">
+          <i class="fa-solid fa-arrow-right-arrow-left me-1"></i> Compare with my previous analysis
+        </a>
+      </div>
+    </div>
+    {% endif %}
     
     <!-- Placement Readiness Summary Card -->
     {% set r_sum = readiness_summary if (readiness_summary is defined and readiness_summary) else {

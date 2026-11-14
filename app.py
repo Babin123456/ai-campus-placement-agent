@@ -52,6 +52,8 @@ from utils.database import (
     update_interview_session,
     get_student_versions,
     get_previous_analysis,
+    get_previous_analysis_for_target,
+    get_student_versions_for_target,
     create_database_backup,
     verify_database_integrity,
     get_batch_comparison,
@@ -189,7 +191,10 @@ from utils.progress_tracker import (
     calculate_version_delta,
     build_longitudinal_series,
     generate_side_by_side_diff,
-    compare_two_resume_texts
+    compare_two_resume_texts,
+    compare_analysis_versions,
+    extract_skills_list,
+    extract_weaknesses_list,
 )
 from utils.password_security import evaluate_password_strength
 from utils.pagination import Pagination
@@ -199,6 +204,7 @@ from utils.resume_info_extractor import (
     validate_reviewed_information,
     reconstruct_resume_markdown
 )
+from utils.resume_pii_service import pii_service, REDACTION_TOKENS
 
 from utils.pdf_reader import (
     extract_text_from_pdf,
@@ -2411,6 +2417,35 @@ def dashboard(analysis_id: str) -> str:
     trend_series = build_longitudinal_series(all_versions)
     initial_outreach = outreach_agent.generate_outreach(analysis_record, tone="formal")
 
+    # Target-scoped longitudinal comparison (#297)
+    target_company = analysis_record.get("company_name", "General")
+    target_role = analysis_record.get("target_role")
+    if not target_role:
+        res = analysis_record.get("results") or {}
+        target_role = (
+            res.get("target_role") or
+            res.get("job_match", {}).get("target_role") or
+            res.get("role_preparation", {}).get("target_role") or
+            "Software Engineer"
+        )
+    target_previous_record = get_previous_analysis_for_target(
+        student_id=student_id,
+        current_analysis_id=analysis_id,
+        current_version=current_version,
+        company_name=target_company,
+        target_role=target_role
+    )
+    target_versions = get_student_versions_for_target(
+        student_id=student_id,
+        company_name=target_company,
+        target_role=target_role
+    )
+    comparison = compare_analysis_versions(
+        current_record=analysis_record,
+        previous_record=target_previous_record,
+        versions_history=target_versions
+    )
+
     # Fetch initial recommended campus drives for seamless SSR
     try:
         feed_service = JobFeedService()
@@ -2635,7 +2670,9 @@ def dashboard(analysis_id: str) -> str:
         skill_evidence=skill_evidence,
         skill_evidence_json=json.dumps(skill_evidence),
         score_explanations=score_explanations,
-        streak=streak_data
+        streak=streak_data,
+        comparison=comparison,
+        comparison_json=json.dumps(comparison)
     )
 
 
@@ -2786,6 +2823,148 @@ def api_skill_evidence_mapping(analysis_id: str):
         "analysis_id": analysis_id,
         "company_name": analysis_record.get("company_name", "General"),
         "skill_evidence": skill_evidence
+    }), 200
+
+
+# ==============================================================================
+# RESUME VERSION COMPARISON VIEW & API (#297)
+# ==============================================================================
+
+@app.route("/dashboard/<analysis_id>/compare-previous", methods=["GET"])
+@app.route("/compare-previous/<analysis_id>", methods=["GET"])
+def compare_with_previous_analysis_view(analysis_id: str):
+    """
+    Renders side-by-side comparison between the current resume analysis
+    and the candidate's previous analysis for the same target role or company (#297).
+    Enforces student authorization and computes diffs deterministically without AI calls.
+    """
+    analysis_record = get_analysis(analysis_id)
+    if not analysis_record:
+        flash("The requested placement analysis report could not be found.", "error")
+        return redirect(url_for("index"))
+
+    if not _is_student_authorized(analysis_record):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.accept_mimetypes.best == "application/json":
+            return jsonify({"status": "error", "message": "Unauthorized access to analysis."}), 403
+        flash("You are not authorized to view this analysis comparison.", "danger")
+        return redirect(url_for("index"))
+
+    student_id = analysis_record.get("student_id") or "default_student"
+    current_version = analysis_record.get("version_number", 1)
+    target_company = analysis_record.get("company_name", "General")
+    target_role = analysis_record.get("target_role")
+    if not target_role:
+        res = analysis_record.get("results") or {}
+        target_role = (
+            res.get("target_role") or
+            res.get("job_match", {}).get("target_role") or
+            res.get("role_preparation", {}).get("target_role") or
+            "Software Engineer"
+        )
+
+    previous_record = get_previous_analysis_for_target(
+        student_id=student_id,
+        current_analysis_id=analysis_id,
+        current_version=current_version,
+        company_name=target_company,
+        target_role=target_role
+    )
+
+    if previous_record and not _is_student_authorized(previous_record):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.accept_mimetypes.best == "application/json":
+            return jsonify({"status": "error", "message": "Unauthorized access to previous analysis."}), 403
+        flash("You are not authorized to compare against this analysis.", "danger")
+        return redirect(url_for("index"))
+
+    versions_for_target = get_student_versions_for_target(
+        student_id=student_id,
+        company_name=target_company,
+        target_role=target_role
+    )
+
+    comparison = compare_analysis_versions(
+        current_record=analysis_record,
+        previous_record=previous_record,
+        versions_history=versions_for_target
+    )
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.accept_mimetypes.best == "application/json":
+        return jsonify({
+            "status": "success",
+            "has_previous": comparison.get("has_previous", False),
+            "comparison": comparison
+        })
+
+    return render_template(
+        "compare_previous.html",
+        analysis=analysis_record,
+        analysis_id=analysis_id,
+        previous=previous_record,
+        comparison=comparison,
+        trend_chart=comparison.get("trend_chart", []),
+        trend_chart_json=json.dumps(comparison.get("trend_chart", []))
+    )
+
+
+@app.route("/api/analysis/<analysis_id>/compare-previous", methods=["GET"])
+def api_compare_with_previous(analysis_id: str):
+    """
+    JSON API returning side-by-side ATS score changes, skills added/removed,
+    weaknesses fixed/present, and version trajectory without AI calls (#297).
+    """
+    analysis_record = get_analysis(analysis_id)
+    if not analysis_record:
+        return jsonify({"status": "error", "message": "Analysis not found."}), 404
+
+    if not _is_student_authorized(analysis_record):
+        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+
+    student_id = analysis_record.get("student_id") or "default_student"
+    current_version = analysis_record.get("version_number", 1)
+    target_company = analysis_record.get("company_name", "General")
+    target_role = analysis_record.get("target_role")
+    if not target_role:
+        res = analysis_record.get("results") or {}
+        target_role = (
+            res.get("target_role") or
+            res.get("job_match", {}).get("target_role") or
+            res.get("role_preparation", {}).get("target_role") or
+            "Software Engineer"
+        )
+
+    previous_record = get_previous_analysis_for_target(
+        student_id=student_id,
+        current_analysis_id=analysis_id,
+        current_version=current_version,
+        company_name=target_company,
+        target_role=target_role
+    )
+
+    if previous_record and not _is_student_authorized(previous_record):
+        return jsonify({"status": "error", "message": "Unauthorized access to previous record."}), 403
+
+    versions_for_target = get_student_versions_for_target(
+        student_id=student_id,
+        company_name=target_company,
+        target_role=target_role
+    )
+
+    comparison = compare_analysis_versions(
+        current_record=analysis_record,
+        previous_record=previous_record,
+        versions_history=versions_for_target
+    )
+
+    return jsonify({
+        "status": "success",
+        "has_previous": comparison.get("has_previous", False),
+        "comparison": comparison,
+        "score_difference": comparison.get("score_difference", 0),
+        "skills_added": comparison.get("skills_added", []),
+        "skills_removed": comparison.get("skills_removed", []),
+        "weaknesses_fixed": comparison.get("weaknesses_fixed", []),
+        "weaknesses_still_present": comparison.get("weaknesses_still_present", []),
+        "trend_chart": comparison.get("trend_chart", [])
     }), 200
 
 
@@ -10682,84 +10861,6 @@ def confirm_application_import():
     )
 
 
-@app.route("/applications/import/preview", methods=["POST"])
-def preview_application_import():
-    student_id = _application_import_student_id()
-    try:
-        headers, rows = _read_application_import_csv(request.files.get("csv_file"))
-        mapping = _suggest_application_import_mapping(headers)
-        preview_rows = _build_application_import_preview(student_id, headers, rows, mapping)
-        now = time.time()
-        for stale_token, stale_preview in list(_APPLICATION_IMPORT_PREVIEWS.items()):
-            if now - stale_preview.get("created_at", now) > 1800:
-                _APPLICATION_IMPORT_PREVIEWS.pop(stale_token, None)
-        token = uuid.uuid4().hex
-        _APPLICATION_IMPORT_PREVIEWS[token] = {
-            "student_id": student_id,
-            "headers": headers,
-            "rows": rows,
-            "created_at": now,
-        }
-        return render_template(
-            "application_import.html",
-            token=token,
-            student_id=student_id,
-            headers=headers,
-            mapping=mapping,
-            preview_rows=preview_rows,
-            import_fields=APPLICATION_IMPORT_FIELDS,
-            valid_rows=sum(1 for row in preview_rows if not row["errors"]),
-            invalid_rows=sum(1 for row in preview_rows if row["errors"]),
-        )
-    except ValueError as exc:
-        flash(str(exc), "danger")
-        return redirect(url_for("job_applications_tracker", student_id=student_id))
-
-
-@app.route("/applications/import/confirm", methods=["POST"])
-def confirm_application_import():
-    student_id = _application_import_student_id()
-    token = request.form.get("token", "").strip()
-    preview = _APPLICATION_IMPORT_PREVIEWS.pop(token, None)
-    if not preview or preview["student_id"] != student_id or time.time() - preview["created_at"] > 1800:
-        flash("This import preview has expired. Please upload the CSV again.", "danger")
-        return redirect(url_for("job_applications_tracker", student_id=student_id))
-
-    mapping = {field: request.form.get(f"mapping_{field}", "").strip() for field in APPLICATION_IMPORT_FIELDS}
-    preview_rows = _build_application_import_preview(student_id, preview["headers"], preview["rows"], mapping)
-    existing_apps = get_job_applications(student_id=student_id)
-    imported = 0
-    skipped = []
-    for row in preview_rows:
-        if row["errors"]:
-            skipped.append({"row_number": row["row_number"], "errors": row["errors"]})
-            continue
-        values = row["values"]
-        save_job_application(
-            app_id=f"app-{uuid.uuid4().hex[:12]}",
-            student_id=student_id,
-            company_name=values["company_name"],
-            role_title=values["role_title"],
-            status=values["status"] or "Applied",
-            application_date=values["application_date"] or None,
-            job_url=values["job_url"],
-            job_description=values["job_description"],
-            notes=values["notes"],
-            location=values["location"] or "Remote",
-            job_type=values["job_type"] or "Full-Time",
-            experience_level=values["experience_level"] or "Entry-Level",
-        )
-        existing_apps.append(values)
-        imported += 1
-
-    return render_template(
-        "application_import_result.html",
-        imported=imported,
-        skipped=skipped,
-        student_id=student_id,
-    )
-
-
 @app.route("/api/applications/stats", methods=["GET"])
 def api_applications_stats():
     """
@@ -12283,13 +12384,11 @@ def company_profile_detail_endpoint(profile_id: str):
             "status": "success" if archived else "error",
             "message": f"Archived company profile '{profile['company_name']}'."
         }), 200
+# ============================================================================
 # RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
 # ============================================================================
 
-
-# RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
-# ============================================================================
-
+@app.route("/api/resume/scan-pii", methods=["POST"])
 def scan_resume_pii_endpoint():
     """
     Scans submitted resume text or uploaded resume file for Personally Identifiable
@@ -12330,6 +12429,7 @@ def scan_resume_pii_endpoint():
     }), 200
 
 
+@app.route("/api/resume/redact-pii", methods=["POST"])
 def redact_resume_pii_endpoint():
     """
     Applies configurable redaction rules to sensitive PII entities within resume text.
@@ -12381,135 +12481,6 @@ def redact_resume_pii_endpoint():
         "status": "success",
         "redaction": redacted_result
     }), 200
-
-
-
-
-
-# ============================================================================
-# RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
-# ============================================================================
-
-def scan_resume_pii_endpoint():
-    """
-    Scans submitted resume text or uploaded resume file for Personally Identifiable
-    Information (PII) including email addresses, phone numbers, addresses,
-    and government identifiers (PAN, Aadhaar, SSN).
-    """
-    if "user_id" not in flask_session:
-        return jsonify({"status": "error", "message": "Authentication required."}), 401
-
-    text_to_scan = ""
-    # Option 1: JSON payload
-    if request.is_json:
-        data = request.get_json(silent=True) or {}
-        text_to_scan = data.get("text", "")
-    elif "resume" in request.files:
-        # Option 2: Uploaded file
-        uploaded_file = request.files["resume"]
-        if uploaded_file and uploaded_file.filename != "":
-            try:
-                text_to_scan, _, _, err = _extract_and_validate_resume(request)
-                if err:
-                    return jsonify({"status": "error", "message": err}), 400
-            except Exception as e:
-                return jsonify({"status": "error", "message": f"Failed to extract text: {str(e)}"}), 400
-    else:
-        text_to_scan = request.form.get("text", "")
-
-    if not text_to_scan or not text_to_scan.strip():
-        return jsonify({
-            "status": "error",
-            "message": "No resume text provided for PII scanning."
-        }), 400
-
-    scan_result = pii_service.detect_pii(text_to_scan)
-    return jsonify({
-        "status": "success",
-        "scan": scan_result
-    }), 200
-
-
-def redact_resume_pii_endpoint():
-    """
-    Applies configurable redaction rules to sensitive PII entities within resume text.
-    Allows candidate granular control to redact emails, phone numbers, addresses,
-    government IDs, or custom sensitive terms.
-    """
-    if "user_id" not in flask_session:
-        return jsonify({"status": "error", "message": "Authentication required."}), 401
-
-    data = request.get_json(silent=True) or request.form
-    raw_text = data.get("text", "")
-
-    if not raw_text or not raw_text.strip():
-        return jsonify({
-            "status": "error",
-            "message": "No resume text provided for redaction."
-        }), 400
-
-    redact_emails = data.get("redact_emails", True)
-    if isinstance(redact_emails, str):
-        redact_emails = redact_emails.lower() not in ("false", "0", "no")
-
-    redact_phones = data.get("redact_phones", True)
-    if isinstance(redact_phones, str):
-        redact_phones = redact_phones.lower() not in ("false", "0", "no")
-
-    redact_addresses = data.get("redact_addresses", True)
-    if isinstance(redact_addresses, str):
-        redact_addresses = redact_addresses.lower() not in ("false", "0", "no")
-
-    redact_gov_ids = data.get("redact_gov_ids", True)
-    if isinstance(redact_gov_ids, str):
-        redact_gov_ids = redact_gov_ids.lower() not in ("false", "0", "no")
-
-    custom_tokens = data.get("custom_redact_values", [])
-    if isinstance(custom_tokens, str):
-        custom_tokens = [t.strip() for t in custom_tokens.split(",") if t.strip()]
-
-    redacted_result = pii_service.redact_pii(
-        raw_text,
-        redact_emails=redact_emails,
-        redact_phones=redact_phones,
-        redact_addresses=redact_addresses,
-        redact_gov_ids=redact_gov_ids,
-        custom_redact_values=custom_tokens
-    )
-
-    return jsonify({
-        "status": "success",
-        "redaction": redacted_result
-    }), 200
-
-
-# JOB APPLICATION DEADLINE REMINDERS ENDPOINTS (#251)
-# ============================================================================
-
-
-
-# ============================================================================
-# RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
-# ============================================================================
-
-
-
-
-
-# ============================================================================
-# CODING BOOKMARK FOLDER MANAGEMENT SYSTEM ENDPOINTS (#253)
-# ============================================================================
-
-
-
-
-
-# ============================================================================
-# RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
-# ============================================================================
-
-
-
 
 
 # ==============================================================================
