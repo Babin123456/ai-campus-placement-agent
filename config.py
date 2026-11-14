@@ -127,4 +127,11 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 NOTIFICATION_SENDER_EMAIL = os.getenv("NOTIFICATION_SENDER_EMAIL", "placements@aicampus.edu")
 EMAIL_DELIVERY_DISABLED = os.getenv("EMAIL_DELIVERY_DISABLED", "false").lower() in ("true", "1", "yes")
 
+# Analysis Result Input Hash Caching Configurations (#296)
+# Caches identical (resume, JD, company) submissions for 24 hours to conserve AI quota
+ANALYSIS_CACHE_ENABLED = os.getenv("ANALYSIS_CACHE_ENABLED", "true").lower() in ("true", "1", "yes")
+ANALYSIS_CACHE_TTL_HOURS = int(os.getenv("ANALYSIS_CACHE_TTL_HOURS", "24"))
+ANALYSIS_CACHE_EXPIRY_SECONDS = int(os.getenv("ANALYSIS_CACHE_EXPIRY_SECONDS", str(ANALYSIS_CACHE_TTL_HOURS * 3600)))
+
+
 
