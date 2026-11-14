@@ -13635,72 +13635,47 @@ def api_saved_job_description_item(saved_id):
 
 
 
-@app.route("/api/offers", methods=["GET", "POST"])
-def api_offers_list_create():
+@app.route("/api/interview/question/flag", methods=["POST"])
+def api_interview_question_flag():
     """
-    List and create private student job offers (#330).
+    Flag an unsuitable mock interview question (#327).
     """
-    from utils.offer_comparison_service import get_student_offers, create_job_offer
+    from utils.question_flag_service import flag_interview_question, VALID_FLAG_REASONS
     student_id = flask_session.get("user_id") or "default_student"
-
-    if request.method == "GET":
-        offers = get_student_offers(student_id)
-        return jsonify({"success": True, "offers": offers}), 200
-
     payload = request.get_json(silent=True) or request.form
+
+    session_id = payload.get("session_id") or payload.get("interview_id") or "mock-session"
+    question_index = payload.get("question_index", 0)
+    question_text = payload.get("question_text") or payload.get("question", "")
+    reason = payload.get("reason") or "Irrelevant to Target Role"
+    comment = payload.get("comment", "")
+
     try:
-        res = create_job_offer(
+        result = flag_interview_question(
             student_id=student_id,
-            company_name=payload.get("company_name", ""),
-            role_title=payload.get("role_title", ""),
-            base_salary=float(payload.get("base_salary", 0)),
-            bonus=float(payload.get("bonus", 0)),
-            equity_annual=float(payload.get("equity_annual", 0)),
-            location=payload.get("location", "Remote"),
-            work_mode=payload.get("work_mode", "Hybrid"),
-            benefits_summary=payload.get("benefits_summary", ""),
-            deadline_date=payload.get("deadline_date"),
-            notes=payload.get("notes", "")
+            session_id=str(session_id),
+            question_index=int(question_index),
+            question_text=str(question_text),
+            reason=str(reason),
+            comment=str(comment)
         )
-        return jsonify(res), 201
+        return jsonify(result), 200
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
+    except PermissionError as pe:
+        return jsonify({"success": False, "error": str(pe)}), 403
     except Exception as e:
-        logger.error(f"Error creating job offer: {e}")
-        return jsonify({"success": False, "error": "Internal error creating offer."}), 500
+        logger.error(f"Error recording question flag: {e}")
+        return jsonify({"success": False, "error": "Internal error flagging question."}), 500
 
 
-@app.route("/api/offers/compare", methods=["POST"])
-def api_offers_compare():
+@app.route("/api/interview/question/flag-reasons", methods=["GET"])
+def api_interview_question_flag_reasons():
     """
-    Compare selected private student job offers side-by-side (#330).
+    Return available question flag categories (#327).
     """
-    from utils.offer_comparison_service import compare_job_offers
-    student_id = flask_session.get("user_id") or "default_student"
-    payload = request.get_json(silent=True) or request.form
-    offer_ids = payload.get("offer_ids") or []
-    if isinstance(offer_ids, str):
-        offer_ids = [o.strip() for o in offer_ids.split(",") if o.strip()]
-
-    try:
-        comparison = compare_job_offers(student_id, offer_ids)
-        return jsonify(comparison), 200
-    except (KeyError, ValueError) as ve:
-        return jsonify({"success": False, "error": str(ve)}), 400
-    except Exception as e:
-        logger.error(f"Error comparing job offers: {e}")
-        return jsonify({"success": False, "error": "Internal error comparing offers."}), 500
-
-
-@app.route("/offers/compare", methods=["GET"])
-def offers_compare_page():
-    """
-    Render private job offers comparison view (#330).
-    """
-    from utils.offer_comparison_service import get_student_offers
-    student_id = flask_session.get("user_id") or "default_student"
-    offers = get_student_offers(student_id)
-    return render_template("offer_comparison.html", student_id=student_id, offers=offers)
+    from utils.question_flag_service import VALID_FLAG_REASONS
+    return jsonify({"success": True, "reasons": VALID_FLAG_REASONS}), 200
 
 
 if __name__ == "__main__":
