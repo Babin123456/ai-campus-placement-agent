@@ -632,12 +632,78 @@ def request_entity_too_large(error):
     return redirect(url_for("index"))
 
 
+@app.errorhandler(404)
+def not_found_error(error):
+    """
+    Handles HTTP 404 Not Found errors (#362).
+    Returns JSON for API/AJAX requests and a styled, accessible 404 page with safe navigation
+    and request correlation details for browser UI requests.
+    """
+    from flask import g
+    req_id = getattr(g, "request_id", None)
+    is_json = (
+        request.is_json
+        or request.path.startswith("/api/")
+        or request.headers.get("Accept") == "application/json"
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    )
+    if is_json:
+        return jsonify({
+            "success": False,
+            "error": "Not Found",
+            "message": "The requested resource could not be found.",
+            "path": request.path,
+            "request_id": req_id,
+        }), 404
+
+    return render_template(
+        "404.html",
+        path=request.path,
+        request_id=req_id,
+    ), 404
+
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    """
+    Handles HTTP 403 Forbidden errors (#362).
+    Returns JSON for API/AJAX requests and a styled, accessible 403 page with authentication
+    guidance and safe navigation for browser UI requests.
+    """
+    from flask import g
+    req_id = getattr(g, "request_id", None)
+    description = getattr(error, "description", None) or "You do not have permission to access this page or resource."
+    is_json = (
+        request.is_json
+        or request.path.startswith("/api/")
+        or request.headers.get("Accept") == "application/json"
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    )
+    if is_json:
+        return jsonify({
+            "success": False,
+            "error": "Forbidden",
+            "message": description,
+            "path": request.path,
+            "request_id": req_id,
+        }), 403
+
+    return render_template(
+        "403.html",
+        message=description,
+        path=request.path,
+        request_id=req_id,
+    ), 403
+
+
 @app.errorhandler(429)
 def rate_limit_exceeded(error):
     """
-    Handles HTTP 429 Too Many Requests errors.
-    Returns JSON for API/AJAX requests and a styled 429 page for browser UI requests (#160).
+    Handles HTTP 429 Too Many Requests errors (#160, #362).
+    Returns JSON for API/AJAX requests and a styled 429 page for browser UI requests.
     """
+    from flask import g
+    req_id = getattr(g, "request_id", None)
     description = getattr(error, "description", None) or "You have temporarily exceeded the request rate limit for this action."
     retry_hint = getattr(error, "retry_hint", "try again in a few minutes")
     retry_after = getattr(error, "retry_after", 60)
@@ -654,6 +720,7 @@ def rate_limit_exceeded(error):
             "message": description,
             "retry_after_seconds": retry_after,
             "retry_after_hint": retry_hint,
+            "request_id": req_id,
         })
         response.status_code = 429
         response.headers["Retry-After"] = str(retry_after)
@@ -664,13 +731,14 @@ def rate_limit_exceeded(error):
         message=description,
         retry_hint=retry_hint,
         retry_after_seconds=retry_after,
+        request_id=req_id,
     ), 429
 
 
 @app.errorhandler(500)
 def internal_server_error(error):
     """
-    Handles HTTP 500 errors safely (#263), generating a unique human-shareable
+    Handles HTTP 500 errors safely (#263, #362), generating a unique human-shareable
     Error Reference ID (ERR-YYYYMMDD-XXXXXX) for support correlation while ensuring
     internal secrets, API keys, and stack traces are never exposed to clients or user views.
     """
@@ -708,8 +776,12 @@ def internal_server_error(error):
             "request_id": req_id,
         }), 500
 
-    flash(f"An unexpected error occurred. Reference ID: {ref_id}. Please contact support if the issue persists.", "error")
-    return redirect(url_for("index"))
+    return render_template(
+        "500.html",
+        reference_id=ref_id,
+        request_id=req_id,
+        path=request.path,
+    ), 500
 
 
 @app.after_request
