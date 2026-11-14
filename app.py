@@ -206,12 +206,6 @@ from utils.resume_info_extractor import (
     reconstruct_resume_markdown
 )
 from utils.resume_pii_service import pii_service, REDACTION_TOKENS
-from utils.analysis_cache import (
-    compute_analysis_hash,
-    get_cached_analysis,
-    set_cached_analysis,
-    invalidate_cache_entry,
-)
 
 from utils.pdf_reader import (
     extract_text_from_pdf,
@@ -12572,8 +12566,6 @@ def company_profile_detail_endpoint(profile_id: str):
             "status": "success" if archived else "error",
             "message": f"Archived company profile '{profile['company_name']}'."
         }), 200
-
-
 # ============================================================================
 # RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
 # ============================================================================

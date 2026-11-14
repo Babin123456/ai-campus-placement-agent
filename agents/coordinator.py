@@ -75,8 +75,16 @@ class CoordinatorAgent:
         if on_progress:
             on_progress("step2", "ResumeAgent", "Evaluating resume formatting, bullet points, and ATS compatibility...", 30)
 
+        # Redact personal contact details from resume before constructing AI model prompt (#295)
+        if getattr(config, "ENABLE_PII_REDACTION", True):
+            from utils.pii_redactor import redact_pii
+            redacted_resume = redact_pii(resume_text)
+            logger.info("CoordinatorAgent: Personal contact details redacted from resume text before prompt building.")
+        else:
+            redacted_resume = resume_text
+
         # 0. Treat uploaded resume and pasted job descriptions as untrusted inputs
-        sanitized_resume = sanitize_untrusted_text(resume_text, max_length=25000)
+        sanitized_resume = sanitize_untrusted_text(redacted_resume, max_length=25000)
         sanitized_jd = sanitize_untrusted_text(job_description, max_length=15000)
 
         resume_threat = detect_prompt_injection(sanitized_resume)
