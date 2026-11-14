@@ -530,12 +530,78 @@ def request_entity_too_large(error):
     return redirect(url_for("index"))
 
 
+@app.errorhandler(404)
+def not_found_error(error):
+    """
+    Handles HTTP 404 Not Found errors (#362).
+    Returns JSON for API/AJAX requests and a styled, accessible 404 page with safe navigation
+    and request correlation details for browser UI requests.
+    """
+    from flask import g
+    req_id = getattr(g, "request_id", None)
+    is_json = (
+        request.is_json
+        or request.path.startswith("/api/")
+        or request.headers.get("Accept") == "application/json"
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    )
+    if is_json:
+        return jsonify({
+            "success": False,
+            "error": "Not Found",
+            "message": "The requested resource could not be found.",
+            "path": request.path,
+            "request_id": req_id,
+        }), 404
+
+    return render_template(
+        "404.html",
+        path=request.path,
+        request_id=req_id,
+    ), 404
+
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    """
+    Handles HTTP 403 Forbidden errors (#362).
+    Returns JSON for API/AJAX requests and a styled, accessible 403 page with authentication
+    guidance and safe navigation for browser UI requests.
+    """
+    from flask import g
+    req_id = getattr(g, "request_id", None)
+    description = getattr(error, "description", None) or "You do not have permission to access this page or resource."
+    is_json = (
+        request.is_json
+        or request.path.startswith("/api/")
+        or request.headers.get("Accept") == "application/json"
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    )
+    if is_json:
+        return jsonify({
+            "success": False,
+            "error": "Forbidden",
+            "message": description,
+            "path": request.path,
+            "request_id": req_id,
+        }), 403
+
+    return render_template(
+        "403.html",
+        message=description,
+        path=request.path,
+        request_id=req_id,
+    ), 403
+
+
 @app.errorhandler(429)
 def rate_limit_exceeded(error):
     """
-    Handles HTTP 429 Too Many Requests errors.
-    Returns JSON for API/AJAX requests and a styled 429 page for browser UI requests (#160).
+    Handles HTTP 429 Too Many Requests errors (#160, #362).
+    Returns JSON for API/AJAX requests and a styled 429 page for browser UI requests.
     """
+    from flask import g
+    req_id = getattr(g, "request_id", None)
     description = getattr(error, "description", None) or "You have temporarily exceeded the request rate limit for this action."
     retry_hint = getattr(error, "retry_hint", "try again in a few minutes")
     retry_after = getattr(error, "retry_after", 60)
@@ -552,6 +618,7 @@ def rate_limit_exceeded(error):
             "message": description,
             "retry_after_seconds": retry_after,
             "retry_after_hint": retry_hint,
+            "request_id": req_id,
         })
         response.status_code = 429
         response.headers["Retry-After"] = str(retry_after)
@@ -562,13 +629,14 @@ def rate_limit_exceeded(error):
         message=description,
         retry_hint=retry_hint,
         retry_after_seconds=retry_after,
+        request_id=req_id,
     ), 429
 
 
 @app.errorhandler(500)
 def internal_server_error(error):
     """
-    Handles HTTP 500 errors safely (#263), generating a unique human-shareable
+    Handles HTTP 500 errors safely (#263, #362), generating a unique human-shareable
     Error Reference ID (ERR-YYYYMMDD-XXXXXX) for support correlation while ensuring
     internal secrets, API keys, and stack traces are never exposed to clients or user views.
     """
@@ -606,8 +674,12 @@ def internal_server_error(error):
             "request_id": req_id,
         }), 500
 
-    flash(f"An unexpected error occurred. Reference ID: {ref_id}. Please contact support if the issue persists.", "error")
-    return redirect(url_for("index"))
+    return render_template(
+        "500.html",
+        reference_id=ref_id,
+        request_id=req_id,
+        path=request.path,
+    ), 500
 
 
 @app.after_request
@@ -10237,84 +10309,6 @@ def job_applications_tracker():
         exp_filter=exp_filter,
         sort_by=sort_by,
         resume_versions=get_student_versions(student_id)
-    )
-
-
-@app.route("/applications/import/preview", methods=["POST"])
-def preview_application_import():
-    student_id = _application_import_student_id()
-    try:
-        headers, rows = _read_application_import_csv(request.files.get("csv_file"))
-        mapping = _suggest_application_import_mapping(headers)
-        preview_rows = _build_application_import_preview(student_id, headers, rows, mapping)
-        now = time.time()
-        for stale_token, stale_preview in list(_APPLICATION_IMPORT_PREVIEWS.items()):
-            if now - stale_preview.get("created_at", now) > 1800:
-                _APPLICATION_IMPORT_PREVIEWS.pop(stale_token, None)
-        token = uuid.uuid4().hex
-        _APPLICATION_IMPORT_PREVIEWS[token] = {
-            "student_id": student_id,
-            "headers": headers,
-            "rows": rows,
-            "created_at": now,
-        }
-        return render_template(
-            "application_import.html",
-            token=token,
-            student_id=student_id,
-            headers=headers,
-            mapping=mapping,
-            preview_rows=preview_rows,
-            import_fields=APPLICATION_IMPORT_FIELDS,
-            valid_rows=sum(1 for row in preview_rows if not row["errors"]),
-            invalid_rows=sum(1 for row in preview_rows if row["errors"]),
-        )
-    except ValueError as exc:
-        flash(str(exc), "danger")
-        return redirect(url_for("job_applications_tracker", student_id=student_id))
-
-
-@app.route("/applications/import/confirm", methods=["POST"])
-def confirm_application_import():
-    student_id = _application_import_student_id()
-    token = request.form.get("token", "").strip()
-    preview = _APPLICATION_IMPORT_PREVIEWS.pop(token, None)
-    if not preview or preview["student_id"] != student_id or time.time() - preview["created_at"] > 1800:
-        flash("This import preview has expired. Please upload the CSV again.", "danger")
-        return redirect(url_for("job_applications_tracker", student_id=student_id))
-
-    mapping = {field: request.form.get(f"mapping_{field}", "").strip() for field in APPLICATION_IMPORT_FIELDS}
-    preview_rows = _build_application_import_preview(student_id, preview["headers"], preview["rows"], mapping)
-    existing_apps = get_job_applications(student_id=student_id)
-    imported = 0
-    skipped = []
-    for row in preview_rows:
-        if row["errors"]:
-            skipped.append({"row_number": row["row_number"], "errors": row["errors"]})
-            continue
-        values = row["values"]
-        save_job_application(
-            app_id=f"app-{uuid.uuid4().hex[:12]}",
-            student_id=student_id,
-            company_name=values["company_name"],
-            role_title=values["role_title"],
-            status=values["status"] or "Applied",
-            application_date=values["application_date"] or None,
-            job_url=values["job_url"],
-            job_description=values["job_description"],
-            notes=values["notes"],
-            location=values["location"] or "Remote",
-            job_type=values["job_type"] or "Full-Time",
-            experience_level=values["experience_level"] or "Entry-Level",
-        )
-        existing_apps.append(values)
-        imported += 1
-
-    return render_template(
-        "application_import_result.html",
-        imported=imported,
-        skipped=skipped,
-        student_id=student_id,
     )
 
 
