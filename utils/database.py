@@ -514,6 +514,21 @@ def init_db() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_section_feedback_analysis ON analysis_section_feedback (analysis_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_section_feedback_section ON analysis_section_feedback (section)")
 
+        # Table 17: Store input-hash cache for placement analysis results (#296)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS analysis_cache (
+                input_hash TEXT NOT NULL,
+                student_id TEXT NOT NULL DEFAULT 'default_student',
+                analysis_id TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                PRIMARY KEY (input_hash, student_id),
+                FOREIGN KEY (analysis_id) REFERENCES analyses (id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_cache_hash ON analysis_cache(input_hash)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_cache_expires ON analysis_cache(expires_at)")
+
         cursor.execute("PRAGMA table_info(users)")
         user_cols = [c[1] for c in cursor.fetchall()]
         if "is_verified" not in user_cols:
@@ -1081,6 +1096,7 @@ def delete_analysis(analysis_id: str) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM interviews WHERE analysis_id = ?", (analysis_id,))
         cursor.execute("DELETE FROM cohort_benchmarks WHERE analysis_id = ?", (analysis_id,))
+        cursor.execute("DELETE FROM analysis_cache WHERE analysis_id = ?", (analysis_id,))
         cursor.execute("DELETE FROM analyses WHERE id = ?", (analysis_id,))
         conn.commit()
         deleted = cursor.rowcount > 0

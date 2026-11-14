@@ -1,5 +1,6 @@
 import os
 import io
+import shutil
 import uuid
 import json
 import time
@@ -205,6 +206,12 @@ from utils.resume_info_extractor import (
     reconstruct_resume_markdown
 )
 from utils.resume_pii_service import pii_service, REDACTION_TOKENS
+from utils.analysis_cache import (
+    compute_analysis_hash,
+    get_cached_analysis,
+    set_cached_analysis,
+    invalidate_cache_entry,
+)
 
 from utils.pdf_reader import (
     extract_text_from_pdf,
@@ -1685,6 +1692,13 @@ def _extract_and_validate_resume(req):
             return None, None, None, validation_msg
         clean_text = pasted_text[:MAX_RESUME_TEXT_CHARS]
         register_sensitive_text(clean_text)
+        try:
+            os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
+            text_path = os.path.join(config.UPLOAD_FOLDER, f"{file_uuid}_resume.txt")
+            with open(text_path, "w", encoding="utf-8") as f:
+                f.write(clean_text)
+        except Exception as e:
+            logger.warning(f"Could not persist pasted resume text: {e}")
         return clean_text, "Pasted_Resume.txt", file_uuid, None
     elif uploaded_file and uploaded_file.filename != "":
         filename_lower = uploaded_file.filename.lower()
@@ -1852,6 +1866,30 @@ def analyze():
                 }), 200
             return redirect(redirect_url)
 
+        # Check input hash caching (#296)
+        force_rerun = (
+            request.form.get("rerun") in ("true", "1", "yes", "on") or
+            request.args.get("rerun") in ("true", "1", "yes", "on") or
+            request.form.get("force_rerun") in ("true", "1", "yes", "on") or
+            request.args.get("force_rerun") in ("true", "1", "yes", "on") or
+            request.args.get("force") in ("true", "1", "yes", "on")
+        )
+        input_hash = compute_analysis_hash(extracted_resume_text, job_description, selected_company)
+
+        if not force_rerun:
+            cached_record = get_cached_analysis(input_hash, student_id=student_id)
+            if cached_record:
+                logger.info(f"Analysis cache hit for hash {input_hash[:12]}... (analysis_id={cached_record['id']})")
+                if request.args.get("async") == "true" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                    return jsonify({
+                        "success": True,
+                        "cached": True,
+                        "status": "cached",
+                        "analysis_id": cached_record["id"],
+                        "redirect_url": url_for("dashboard", analysis_id=cached_record["id"], from_cache="1")
+                    }), 200
+                return redirect(url_for("dashboard", analysis_id=cached_record["id"], from_cache="1"))
+
         # Check for asynchronous execution request
         if request.args.get("async") == "true" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
             task = create_analysis_task(
@@ -1891,6 +1929,12 @@ def analyze():
             company_name=selected_company,
             job_description=job_description,
             results_dict=analysis_payload,
+            student_id=student_id
+        )
+
+        set_cached_analysis(
+            input_hash=input_hash,
+            analysis_id=file_uuid,
             student_id=student_id
         )
 
@@ -1972,6 +2016,29 @@ def start_analysis_async():
                 }), 200
             return redirect(url_for("resume_review_by_uuid", file_uuid=file_uuid))
 
+        # Check input hash caching (#296)
+        force_rerun = (
+            request.form.get("rerun") in ("true", "1", "yes", "on") or
+            request.args.get("rerun") in ("true", "1", "yes", "on") or
+            request.form.get("force_rerun") in ("true", "1", "yes", "on") or
+            request.args.get("force_rerun") in ("true", "1", "yes", "on") or
+            request.args.get("force") in ("true", "1", "yes", "on")
+        )
+        input_hash = compute_analysis_hash(extracted_resume_text, job_description, selected_company)
+
+        if not force_rerun:
+            cached_record = get_cached_analysis(input_hash, student_id=student_id)
+            if cached_record:
+                logger.info(f"API start cache hit for hash {input_hash[:12]}... (analysis_id={cached_record['id']})")
+                return jsonify({
+                    "success": True,
+                    "cached": True,
+                    "status": "cached",
+                    "task_id": None,
+                    "analysis_id": cached_record["id"],
+                    "redirect_url": url_for("dashboard", analysis_id=cached_record["id"], from_cache="1")
+                }), 200
+
         task = create_analysis_task(
             company_name=selected_company,
             resume_filename=resume_filename
@@ -2047,6 +2114,119 @@ def get_analysis_task_status(task_id: str):
         return jsonify({"success": False, "error": f"Analysis task '{task_id}' not found"}), 404
 
     return jsonify({"success": True, **task.to_dict()}), 200
+
+
+@app.route("/analyze/rerun/<analysis_id>", methods=["GET", "POST"])
+def rerun_analysis(analysis_id: str):
+    """
+    Forces a fresh placement analysis for an existing analysis, bypassing cache (#296).
+    Re-invokes coordinator_agent.analyze(), saves new analysis record, updates cache,
+    and redirects to the new dashboard without the cached notice banner.
+    """
+    analysis_record = get_analysis(analysis_id)
+    if not analysis_record or not _is_student_authorized(analysis_record):
+        flash("The requested placement analysis report could not be found.", "error")
+        return redirect(url_for("index"))
+
+    student_id = flask_session.get("user_id") or analysis_record.get("student_id") or "default_student"
+    resume_text = (request.form.get("resume_text") or analysis_record.get("resume_text") or "").strip()
+    job_description = (request.form.get("job_description") or analysis_record.get("job_description") or "").strip()
+    company_name = (request.form.get("company") or analysis_record.get("company_name") or "General").strip()
+    resume_filename = (request.form.get("resume_filename") or analysis_record.get("resume_filename") or "resume.pdf").strip()
+
+    if not resume_text:
+        # 1. Check for stored text, pdf, or docx files
+        for candidate_ext in ("_resume.txt", ".txt", ".pdf", ".docx"):
+            candidate_path = os.path.join(config.UPLOAD_FOLDER, f"{analysis_id}{candidate_ext}")
+            if os.path.exists(candidate_path):
+                try:
+                    from utils.pdf_reader import extract_text_from_file
+                    resume_text = extract_text_from_file(candidate_path)
+                    if resume_text:
+                        break
+                except Exception as e:
+                    logger.warning(f"Could not read stored file {candidate_path}: {e}")
+
+    if not resume_text and os.path.exists(config.UPLOAD_FOLDER):
+        # 2. Check for files starting with {analysis_id}_
+        for fname in os.listdir(config.UPLOAD_FOLDER):
+            if fname.startswith(f"{analysis_id}_") or fname.startswith(f"{analysis_id}."):
+                candidate_path = os.path.join(config.UPLOAD_FOLDER, fname)
+                try:
+                    from utils.pdf_reader import extract_text_from_file
+                    resume_text = extract_text_from_file(candidate_path)
+                    if resume_text:
+                        break
+                except Exception as e:
+                    logger.warning(f"Could not extract text from {candidate_path}: {e}")
+
+    if not resume_text:
+        # 3. Fallback: Reconstruct resume text representation from analysis results
+        results = analysis_record.get("results") or {}
+        resume_analysis = results.get("resume_analysis") or {}
+        strengths = resume_analysis.get("strengths") or []
+        summary = resume_analysis.get("summary") or ""
+        if summary or strengths:
+            resume_text = f"Summary: {summary}\nKey Skills & Strengths: {', '.join(strengths)}"
+        else:
+            resume_text = f"Candidate profile evaluated for {company_name}."
+
+    new_analysis_id = str(uuid.uuid4())
+
+    # Copy any associated resume files to the new analysis ID
+    if os.path.exists(config.UPLOAD_FOLDER):
+        for fname in os.listdir(config.UPLOAD_FOLDER):
+            if fname.startswith(f"{analysis_id}"):
+                suffix = fname[len(analysis_id):]
+                new_fname = f"{new_analysis_id}{suffix}"
+                try:
+                    shutil.copyfile(
+                        os.path.join(config.UPLOAD_FOLDER, fname),
+                        os.path.join(config.UPLOAD_FOLDER, new_fname)
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not copy file {fname} for re-run: {e}")
+
+    try:
+        analysis_payload = coordinator_agent.analyze(
+            resume_text=resume_text,
+            job_description=job_description,
+            company_name=company_name
+        )
+
+        save_analysis(
+            analysis_id=new_analysis_id,
+            resume_filename=resume_filename,
+            company_name=company_name,
+            job_description=job_description,
+            results_dict=analysis_payload,
+            student_id=student_id
+        )
+
+        input_hash = compute_analysis_hash(resume_text, job_description, company_name)
+        set_cached_analysis(
+            input_hash=input_hash,
+            analysis_id=new_analysis_id,
+            student_id=student_id
+        )
+
+        flash("Analysis re-run complete! Fresh evaluation generated.", "success")
+        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({
+                "success": True,
+                "analysis_id": new_analysis_id,
+                "redirect_url": url_for("dashboard", analysis_id=new_analysis_id)
+            }), 200
+
+        return redirect(url_for("dashboard", analysis_id=new_analysis_id))
+
+    except Exception as e:
+        logger.error(f"Failed to re-run analysis for {analysis_id}: {e}")
+        friendly_message = format_ai_error_for_user(e)
+        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": False, "error": friendly_message}), 500
+        flash(f"Re-run failed: {friendly_message}", "error")
+        return redirect(url_for("dashboard", analysis_id=analysis_id))
 
 
 @app.route("/api/analysis/batch-compare", methods=["POST"])
@@ -2649,10 +2829,18 @@ def dashboard(analysis_id: str) -> str:
 
     analysis_annotations = get_analysis_annotations(student_id, analysis_id)
 
+    is_cached = (
+        request.args.get("from_cache") in ("1", "true", "yes") or
+        request.args.get("cached") in ("1", "true", "yes") or
+        bool(analysis_record.get("from_cache")) or
+        bool(analysis_record.get("is_cached"))
+    )
+
     return render_template(
         "dashboard.html",
         analysis=analysis_record,
         analysis_id=analysis_id,
+        is_cached=is_cached,
         versions=all_versions,
         current_version=current_version,
         previous_record=previous_record,
@@ -12384,6 +12572,8 @@ def company_profile_detail_endpoint(profile_id: str):
             "status": "success" if archived else "error",
             "message": f"Archived company profile '{profile['company_name']}'."
         }), 200
+
+
 # ============================================================================
 # RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
 # ============================================================================
