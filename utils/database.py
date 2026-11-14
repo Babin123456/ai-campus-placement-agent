@@ -42,6 +42,7 @@ def init_db() -> None:
                 results_json TEXT NOT NULL,
                 student_id TEXT DEFAULT 'default_student',
                 version_number INTEGER DEFAULT 1,
+                target_role TEXT DEFAULT 'Software Engineer',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -361,13 +362,15 @@ def init_db() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_gemini_api_logs_status ON gemini_api_logs (status)")
 
         
-        # Schema migration: check if student_id and version_number exist in analyses
+        # Schema migration: check if student_id, version_number and target_role exist in analyses
         cursor.execute("PRAGMA table_info(analyses)")
         existing_cols = [col[1] for col in cursor.fetchall()]
         if "student_id" not in existing_cols:
             cursor.execute("ALTER TABLE analyses ADD COLUMN student_id TEXT DEFAULT 'default_student'")
         if "version_number" not in existing_cols:
             cursor.execute("ALTER TABLE analyses ADD COLUMN version_number INTEGER DEFAULT 1")
+        if "target_role" not in existing_cols:
+            cursor.execute("ALTER TABLE analyses ADD COLUMN target_role TEXT DEFAULT 'Software Engineer'")
 
         # Schema migration for job_applications table (#193, #298)
         cursor.execute("PRAGMA table_info(job_applications)")
@@ -550,10 +553,12 @@ def save_analysis(
     job_description: str,
     results_dict: dict,
     student_id: Optional[str] = None,
-    version_number: Optional[int] = None
+    version_number: Optional[int] = None,
+    target_role: Optional[str] = None,
+    **kwargs
 ) -> None:
     """Inserts a newly generated coordinator analysis into the database.
-    Automatically assigns candidate student_id and auto-increments version_number if omitted."""
+    Automatically assigns candidate student_id, target_role, and auto-increments version_number if omitted."""
     # Guard against saving synthetic demo data to real user records (#360)
     if (
         student_id == "demo_visitor"
@@ -568,6 +573,17 @@ def save_analysis(
         cursor = conn.cursor()
         effective_student_id = (student_id or "default_student").strip()
 
+        # Infer target role if omitted (#297)
+        if not target_role:
+            res = results_dict if isinstance(results_dict, dict) else {}
+            target_role = (
+                res.get("target_role") or
+                res.get("job_match", {}).get("target_role") or
+                res.get("role_preparation", {}).get("target_role") or
+                "Software Engineer"
+            )
+        target_role = (target_role or "Software Engineer").strip()
+
         # Compute next version number if not explicitly specified
         if version_number is None or version_number <= 0:
             cursor.execute(
@@ -576,20 +592,37 @@ def save_analysis(
             )
             version_number = cursor.fetchone()[0]
 
-        cursor.execute("""
-            INSERT INTO analyses (id, resume_filename, company_name, job_description, results_json, student_id, version_number)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            analysis_id,
-            resume_filename,
-            company_name,
-            job_description,
-            json.dumps(results_dict),
-            effective_student_id,
-            version_number
-        ))
+        cursor.execute("PRAGMA table_info(analyses)")
+        col_names = [c[1] for c in cursor.fetchall()]
+        if "target_role" in col_names:
+            cursor.execute("""
+                INSERT INTO analyses (id, resume_filename, company_name, job_description, results_json, student_id, version_number, target_role)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                analysis_id,
+                resume_filename,
+                company_name,
+                job_description,
+                json.dumps(results_dict),
+                effective_student_id,
+                version_number,
+                target_role
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO analyses (id, resume_filename, company_name, job_description, results_json, student_id, version_number)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                analysis_id,
+                resume_filename,
+                company_name,
+                job_description,
+                json.dumps(results_dict),
+                effective_student_id,
+                version_number
+            ))
         conn.commit()
-        logger.info(f"Analysis saved with ID: {analysis_id} (Student: {effective_student_id}, Version: v{version_number})")
+        logger.info(f"Analysis saved with ID: {analysis_id} (Student: {effective_student_id}, Version: v{version_number}, Target Role: {target_role})")
 
         # Automatically register or update candidate on the cohort benchmark leaderboard
         try:
@@ -705,9 +738,15 @@ def get_student_versions(student_id: str, company_name: Optional[str] = None) ->
     finally:
         conn.close()
 
-def get_previous_analysis(student_id: str, current_version: int) -> Optional[Dict[str, Any]]:
+def get_previous_analysis(
+    student_id: str,
+    current_version: int,
+    company_name: Optional[str] = None,
+    target_role: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """
-    Retrieves the immediately preceding analysis record for a candidate.
+    Retrieves the immediately preceding analysis record for a candidate,
+    optionally matching target company or target role.
     """
     if student_id == "demo_visitor":
         return None
@@ -716,12 +755,28 @@ def get_previous_analysis(student_id: str, current_version: int) -> Optional[Dic
     try:
         cursor = conn.cursor()
         effective_student_id = (student_id or "default_student").strip()
-        cursor.execute("""
-            SELECT * FROM analyses
-            WHERE student_id = ? AND version_number < ?
-            ORDER BY version_number DESC
-            LIMIT 1
-        """, (effective_student_id, current_version))
+        cursor.execute("PRAGMA table_info(analyses)")
+        col_names = {c[1] for c in cursor.fetchall()}
+        has_role_col = "target_role" in col_names
+
+        query = ["SELECT * FROM analyses WHERE student_id = ? AND version_number < ?"]
+        params = [effective_student_id, current_version]
+
+        norm_company = company_name.strip() if company_name else ""
+        norm_role = target_role.strip() if target_role else ""
+
+        if norm_company and norm_role and has_role_col:
+            query.append("AND (LOWER(company_name) = LOWER(?) OR LOWER(target_role) = LOWER(?))")
+            params.extend([norm_company, norm_role])
+        elif norm_company:
+            query.append("AND LOWER(company_name) = LOWER(?)")
+            params.append(norm_company)
+        elif norm_role and has_role_col:
+            query.append("AND LOWER(target_role) = LOWER(?)")
+            params.append(norm_role)
+
+        query.append("ORDER BY version_number DESC, created_at DESC LIMIT 1")
+        cursor.execute(" ".join(query), tuple(params))
         row = cursor.fetchone()
         if row:
             rec = dict(row)
@@ -734,6 +789,134 @@ def get_previous_analysis(student_id: str, current_version: int) -> Optional[Dic
     except Exception as e:
         logger.error(f"Error fetching previous analysis for student {student_id} (current v{current_version}): {str(e)}")
         raise e
+    finally:
+        conn.close()
+
+
+def get_previous_analysis_for_target(
+    student_id: str,
+    current_analysis_id: Optional[str] = None,
+    current_version: Optional[int] = None,
+    company_name: Optional[str] = None,
+    target_role: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Finds the most recent preceding analysis for the given student for the SAME target role
+    or company (#297).
+    Returns None if this is the student's first analysis for that role/company.
+    """
+    if student_id == "demo_visitor":
+        return None
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        effective_student_id = (student_id or "default_student").strip()
+        cursor.execute("PRAGMA table_info(analyses)")
+        cols = {c[1] for c in cursor.fetchall()}
+        has_role_col = "target_role" in cols
+
+        query = ["SELECT * FROM analyses WHERE student_id = ?"]
+        params = [effective_student_id]
+
+        if current_analysis_id:
+            query.append("AND id != ?")
+            params.append(current_analysis_id)
+
+        if current_version is not None and current_version > 1:
+            query.append("AND version_number < ?")
+            params.append(current_version)
+
+        norm_company = company_name.strip() if company_name else ""
+        norm_role = target_role.strip() if target_role else ""
+
+        if norm_company and norm_role and has_role_col:
+            query.append("AND (LOWER(company_name) = LOWER(?) OR LOWER(target_role) = LOWER(?))")
+            params.extend([norm_company, norm_role])
+        elif norm_company:
+            query.append("AND LOWER(company_name) = LOWER(?)")
+            params.append(norm_company)
+        elif norm_role and has_role_col:
+            query.append("AND LOWER(target_role) = LOWER(?)")
+            params.append(norm_role)
+
+        query.append("ORDER BY version_number DESC, created_at DESC LIMIT 1")
+        cursor.execute(" ".join(query), tuple(params))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        try:
+            rec["results"] = json.loads(rec.get("results_json", "{}"))
+        except Exception:
+            rec["results"] = {}
+        return rec
+    except Exception as e:
+        logger.error(f"Error fetching previous analysis for target: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_student_versions_for_target(
+    student_id: str,
+    company_name: Optional[str] = None,
+    target_role: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves all resume analysis versions for a candidate matching the specified
+    target role OR company (#297), ordered chronologically.
+    """
+    if student_id == "demo_visitor":
+        from utils.demo_mode import get_synthetic_sample_analysis
+        return [get_synthetic_sample_analysis()]
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        effective_student_id = (student_id or "default_student").strip()
+        cursor.execute("PRAGMA table_info(analyses)")
+        cols = {c[1] for c in cursor.fetchall()}
+        has_role_col = "target_role" in cols
+
+        query = ["SELECT * FROM analyses WHERE student_id = ?"]
+        params = [effective_student_id]
+
+        norm_company = company_name.strip() if company_name else ""
+        norm_role = target_role.strip() if target_role else ""
+
+        if norm_company and norm_role and has_role_col:
+            query.append("AND (LOWER(company_name) = LOWER(?) OR LOWER(target_role) = LOWER(?))")
+            params.extend([norm_company, norm_role])
+        elif norm_company:
+            query.append("AND LOWER(company_name) = LOWER(?)")
+            params.append(norm_company)
+        elif norm_role and has_role_col:
+            query.append("AND LOWER(target_role) = LOWER(?)")
+            params.append(norm_role)
+
+        query.append("ORDER BY version_number ASC, created_at ASC")
+        cursor.execute(" ".join(query), tuple(params))
+        rows = cursor.fetchall()
+
+        versions = []
+        for row in rows:
+            rec = dict(row)
+            try:
+                rec["results"] = json.loads(rec.get("results_json", "{}"))
+                res_analysis = rec["results"].get("resume_analysis", {})
+                job_match = rec["results"].get("job_match", {})
+                rec["ats_score"] = res_analysis.get("ats_score", 0)
+                rec["match_percentage"] = job_match.get("match_percentage", 0)
+            except Exception:
+                rec["results"] = {}
+                rec["ats_score"] = 0
+                rec["match_percentage"] = 0
+            versions.append(rec)
+        return versions
+    except Exception as e:
+        logger.error(f"Error in get_student_versions_for_target: {e}")
+        return []
     finally:
         conn.close()
 
@@ -1145,7 +1328,8 @@ def save_job_application(
     resume_analysis_id: Optional[str] = None,
     resume_filename: Optional[str] = None,
     resume_version: Optional[int] = None,
-    job_description_snapshot: Optional[str] = None
+    job_description_snapshot: Optional[str] = None,
+    deadline_date: Optional[str] = None
 ) -> None:
     """
     Saves or updates a candidate job application record (#143, #193, #298).
@@ -1324,7 +1508,8 @@ def update_job_application(
     resume_analysis_id: Optional[str] = None,
     resume_filename: Optional[str] = None,
     resume_version: Optional[int] = None,
-    job_description_snapshot: Optional[str] = None
+    job_description_snapshot: Optional[str] = None,
+    deadline_date: Optional[str] = None
 ) -> bool:
     """
     Updates an existing job application record with new details (#143, #298).

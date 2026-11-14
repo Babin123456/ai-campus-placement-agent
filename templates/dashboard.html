@@ -47,6 +47,11 @@
         <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-2 px-sm-3" id="btnShareProfileModal" data-bs-toggle="modal" data-bs-target="#shareProfileModal">
           <i class="fa-solid fa-share-nodes me-1"></i> Share
         </button>
+        {% if comparison is defined and comparison and comparison.has_previous %}
+        <a href="{{ url_for('compare_with_previous_analysis_view', analysis_id=analysis_id) }}" class="btn btn-outline-primary btn-sm rounded-pill px-2 px-sm-3" id="btnNavComparePrevious" title="Compare with my previous analysis">
+          <i class="fa-solid fa-code-compare me-1"></i> <span class="d-none d-sm-inline">Compare with</span> Previous
+        </a>
+        {% endif %}
         <a href="/download/{{ analysis_id }}" class="btn btn-custom-primary btn-sm rounded-pill px-2 px-sm-3">
           <i class="fa-solid fa-download me-1"></i> <span class="d-none d-sm-inline">Download</span> PDF
         </a>

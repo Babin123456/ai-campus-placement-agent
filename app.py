@@ -53,6 +53,8 @@ from utils.database import (
     update_interview_session,
     get_student_versions,
     get_previous_analysis,
+    get_previous_analysis_for_target,
+    get_student_versions_for_target,
     create_database_backup,
     verify_database_integrity,
     get_batch_comparison,
@@ -190,7 +192,10 @@ from utils.progress_tracker import (
     calculate_version_delta,
     build_longitudinal_series,
     generate_side_by_side_diff,
-    compare_two_resume_texts
+    compare_two_resume_texts,
+    compare_analysis_versions,
+    extract_skills_list,
+    extract_weaknesses_list,
 )
 from utils.password_security import evaluate_password_strength
 from utils.pagination import Pagination
@@ -2592,6 +2597,35 @@ def dashboard(analysis_id: str) -> str:
     trend_series = build_longitudinal_series(all_versions)
     initial_outreach = outreach_agent.generate_outreach(analysis_record, tone="formal")
 
+    # Target-scoped longitudinal comparison (#297)
+    target_company = analysis_record.get("company_name", "General")
+    target_role = analysis_record.get("target_role")
+    if not target_role:
+        res = analysis_record.get("results") or {}
+        target_role = (
+            res.get("target_role") or
+            res.get("job_match", {}).get("target_role") or
+            res.get("role_preparation", {}).get("target_role") or
+            "Software Engineer"
+        )
+    target_previous_record = get_previous_analysis_for_target(
+        student_id=student_id,
+        current_analysis_id=analysis_id,
+        current_version=current_version,
+        company_name=target_company,
+        target_role=target_role
+    )
+    target_versions = get_student_versions_for_target(
+        student_id=student_id,
+        company_name=target_company,
+        target_role=target_role
+    )
+    comparison = compare_analysis_versions(
+        current_record=analysis_record,
+        previous_record=target_previous_record,
+        versions_history=target_versions
+    )
+
     # Fetch initial recommended campus drives for seamless SSR
     try:
         feed_service = JobFeedService()
@@ -2824,7 +2858,9 @@ def dashboard(analysis_id: str) -> str:
         skill_evidence=skill_evidence,
         skill_evidence_json=json.dumps(skill_evidence),
         score_explanations=score_explanations,
-        streak=streak_data
+        streak=streak_data,
+        comparison=comparison,
+        comparison_json=json.dumps(comparison)
     )
 
 
@@ -2975,6 +3011,148 @@ def api_skill_evidence_mapping(analysis_id: str):
         "analysis_id": analysis_id,
         "company_name": analysis_record.get("company_name", "General"),
         "skill_evidence": skill_evidence
+    }), 200
+
+
+# ==============================================================================
+# RESUME VERSION COMPARISON VIEW & API (#297)
+# ==============================================================================
+
+@app.route("/dashboard/<analysis_id>/compare-previous", methods=["GET"])
+@app.route("/compare-previous/<analysis_id>", methods=["GET"])
+def compare_with_previous_analysis_view(analysis_id: str):
+    """
+    Renders side-by-side comparison between the current resume analysis
+    and the candidate's previous analysis for the same target role or company (#297).
+    Enforces student authorization and computes diffs deterministically without AI calls.
+    """
+    analysis_record = get_analysis(analysis_id)
+    if not analysis_record:
+        flash("The requested placement analysis report could not be found.", "error")
+        return redirect(url_for("index"))
+
+    if not _is_student_authorized(analysis_record):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.accept_mimetypes.best == "application/json":
+            return jsonify({"status": "error", "message": "Unauthorized access to analysis."}), 403
+        flash("You are not authorized to view this analysis comparison.", "danger")
+        return redirect(url_for("index"))
+
+    student_id = analysis_record.get("student_id") or "default_student"
+    current_version = analysis_record.get("version_number", 1)
+    target_company = analysis_record.get("company_name", "General")
+    target_role = analysis_record.get("target_role")
+    if not target_role:
+        res = analysis_record.get("results") or {}
+        target_role = (
+            res.get("target_role") or
+            res.get("job_match", {}).get("target_role") or
+            res.get("role_preparation", {}).get("target_role") or
+            "Software Engineer"
+        )
+
+    previous_record = get_previous_analysis_for_target(
+        student_id=student_id,
+        current_analysis_id=analysis_id,
+        current_version=current_version,
+        company_name=target_company,
+        target_role=target_role
+    )
+
+    if previous_record and not _is_student_authorized(previous_record):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.accept_mimetypes.best == "application/json":
+            return jsonify({"status": "error", "message": "Unauthorized access to previous analysis."}), 403
+        flash("You are not authorized to compare against this analysis.", "danger")
+        return redirect(url_for("index"))
+
+    versions_for_target = get_student_versions_for_target(
+        student_id=student_id,
+        company_name=target_company,
+        target_role=target_role
+    )
+
+    comparison = compare_analysis_versions(
+        current_record=analysis_record,
+        previous_record=previous_record,
+        versions_history=versions_for_target
+    )
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.accept_mimetypes.best == "application/json":
+        return jsonify({
+            "status": "success",
+            "has_previous": comparison.get("has_previous", False),
+            "comparison": comparison
+        })
+
+    return render_template(
+        "compare_previous.html",
+        analysis=analysis_record,
+        analysis_id=analysis_id,
+        previous=previous_record,
+        comparison=comparison,
+        trend_chart=comparison.get("trend_chart", []),
+        trend_chart_json=json.dumps(comparison.get("trend_chart", []))
+    )
+
+
+@app.route("/api/analysis/<analysis_id>/compare-previous", methods=["GET"])
+def api_compare_with_previous(analysis_id: str):
+    """
+    JSON API returning side-by-side ATS score changes, skills added/removed,
+    weaknesses fixed/present, and version trajectory without AI calls (#297).
+    """
+    analysis_record = get_analysis(analysis_id)
+    if not analysis_record:
+        return jsonify({"status": "error", "message": "Analysis not found."}), 404
+
+    if not _is_student_authorized(analysis_record):
+        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+
+    student_id = analysis_record.get("student_id") or "default_student"
+    current_version = analysis_record.get("version_number", 1)
+    target_company = analysis_record.get("company_name", "General")
+    target_role = analysis_record.get("target_role")
+    if not target_role:
+        res = analysis_record.get("results") or {}
+        target_role = (
+            res.get("target_role") or
+            res.get("job_match", {}).get("target_role") or
+            res.get("role_preparation", {}).get("target_role") or
+            "Software Engineer"
+        )
+
+    previous_record = get_previous_analysis_for_target(
+        student_id=student_id,
+        current_analysis_id=analysis_id,
+        current_version=current_version,
+        company_name=target_company,
+        target_role=target_role
+    )
+
+    if previous_record and not _is_student_authorized(previous_record):
+        return jsonify({"status": "error", "message": "Unauthorized access to previous record."}), 403
+
+    versions_for_target = get_student_versions_for_target(
+        student_id=student_id,
+        company_name=target_company,
+        target_role=target_role
+    )
+
+    comparison = compare_analysis_versions(
+        current_record=analysis_record,
+        previous_record=previous_record,
+        versions_history=versions_for_target
+    )
+
+    return jsonify({
+        "status": "success",
+        "has_previous": comparison.get("has_previous", False),
+        "comparison": comparison,
+        "score_difference": comparison.get("score_difference", 0),
+        "skills_added": comparison.get("skills_added", []),
+        "skills_removed": comparison.get("skills_removed", []),
+        "weaknesses_fixed": comparison.get("weaknesses_fixed", []),
+        "weaknesses_still_present": comparison.get("weaknesses_still_present", []),
+        "trend_chart": comparison.get("trend_chart", [])
     }), 200
 
 
