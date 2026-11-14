@@ -127,4 +127,9 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 NOTIFICATION_SENDER_EMAIL = os.getenv("NOTIFICATION_SENDER_EMAIL", "placements@aicampus.edu")
 EMAIL_DELIVERY_DISABLED = os.getenv("EMAIL_DELIVERY_DISABLED", "false").lower() in ("true", "1", "yes")
 
+# Resume Personal Contact Details & PII Redaction Before AI Submission (#295)
+ENABLE_PII_REDACTION = os.getenv("ENABLE_PII_REDACTION", "true").lower() in ("true", "1", "yes")
+PII_REDACTION_ENABLED = ENABLE_PII_REDACTION
+
+
 

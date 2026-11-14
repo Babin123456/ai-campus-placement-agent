@@ -199,6 +199,7 @@ from utils.resume_info_extractor import (
     validate_reviewed_information,
     reconstruct_resume_markdown
 )
+from utils.resume_pii_service import pii_service, REDACTION_TOKENS
 
 from utils.pdf_reader import (
     extract_text_from_pdf,
@@ -10682,84 +10683,6 @@ def confirm_application_import():
     )
 
 
-@app.route("/applications/import/preview", methods=["POST"])
-def preview_application_import():
-    student_id = _application_import_student_id()
-    try:
-        headers, rows = _read_application_import_csv(request.files.get("csv_file"))
-        mapping = _suggest_application_import_mapping(headers)
-        preview_rows = _build_application_import_preview(student_id, headers, rows, mapping)
-        now = time.time()
-        for stale_token, stale_preview in list(_APPLICATION_IMPORT_PREVIEWS.items()):
-            if now - stale_preview.get("created_at", now) > 1800:
-                _APPLICATION_IMPORT_PREVIEWS.pop(stale_token, None)
-        token = uuid.uuid4().hex
-        _APPLICATION_IMPORT_PREVIEWS[token] = {
-            "student_id": student_id,
-            "headers": headers,
-            "rows": rows,
-            "created_at": now,
-        }
-        return render_template(
-            "application_import.html",
-            token=token,
-            student_id=student_id,
-            headers=headers,
-            mapping=mapping,
-            preview_rows=preview_rows,
-            import_fields=APPLICATION_IMPORT_FIELDS,
-            valid_rows=sum(1 for row in preview_rows if not row["errors"]),
-            invalid_rows=sum(1 for row in preview_rows if row["errors"]),
-        )
-    except ValueError as exc:
-        flash(str(exc), "danger")
-        return redirect(url_for("job_applications_tracker", student_id=student_id))
-
-
-@app.route("/applications/import/confirm", methods=["POST"])
-def confirm_application_import():
-    student_id = _application_import_student_id()
-    token = request.form.get("token", "").strip()
-    preview = _APPLICATION_IMPORT_PREVIEWS.pop(token, None)
-    if not preview or preview["student_id"] != student_id or time.time() - preview["created_at"] > 1800:
-        flash("This import preview has expired. Please upload the CSV again.", "danger")
-        return redirect(url_for("job_applications_tracker", student_id=student_id))
-
-    mapping = {field: request.form.get(f"mapping_{field}", "").strip() for field in APPLICATION_IMPORT_FIELDS}
-    preview_rows = _build_application_import_preview(student_id, preview["headers"], preview["rows"], mapping)
-    existing_apps = get_job_applications(student_id=student_id)
-    imported = 0
-    skipped = []
-    for row in preview_rows:
-        if row["errors"]:
-            skipped.append({"row_number": row["row_number"], "errors": row["errors"]})
-            continue
-        values = row["values"]
-        save_job_application(
-            app_id=f"app-{uuid.uuid4().hex[:12]}",
-            student_id=student_id,
-            company_name=values["company_name"],
-            role_title=values["role_title"],
-            status=values["status"] or "Applied",
-            application_date=values["application_date"] or None,
-            job_url=values["job_url"],
-            job_description=values["job_description"],
-            notes=values["notes"],
-            location=values["location"] or "Remote",
-            job_type=values["job_type"] or "Full-Time",
-            experience_level=values["experience_level"] or "Entry-Level",
-        )
-        existing_apps.append(values)
-        imported += 1
-
-    return render_template(
-        "application_import_result.html",
-        imported=imported,
-        skipped=skipped,
-        student_id=student_id,
-    )
-
-
 @app.route("/api/applications/stats", methods=["GET"])
 def api_applications_stats():
     """
@@ -12283,13 +12206,11 @@ def company_profile_detail_endpoint(profile_id: str):
             "status": "success" if archived else "error",
             "message": f"Archived company profile '{profile['company_name']}'."
         }), 200
+# ============================================================================
 # RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
 # ============================================================================
 
-
-# RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
-# ============================================================================
-
+@app.route("/api/resume/scan-pii", methods=["POST"])
 def scan_resume_pii_endpoint():
     """
     Scans submitted resume text or uploaded resume file for Personally Identifiable
@@ -12330,6 +12251,7 @@ def scan_resume_pii_endpoint():
     }), 200
 
 
+@app.route("/api/resume/redact-pii", methods=["POST"])
 def redact_resume_pii_endpoint():
     """
     Applies configurable redaction rules to sensitive PII entities within resume text.
@@ -12381,135 +12303,6 @@ def redact_resume_pii_endpoint():
         "status": "success",
         "redaction": redacted_result
     }), 200
-
-
-
-
-
-# ============================================================================
-# RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
-# ============================================================================
-
-def scan_resume_pii_endpoint():
-    """
-    Scans submitted resume text or uploaded resume file for Personally Identifiable
-    Information (PII) including email addresses, phone numbers, addresses,
-    and government identifiers (PAN, Aadhaar, SSN).
-    """
-    if "user_id" not in flask_session:
-        return jsonify({"status": "error", "message": "Authentication required."}), 401
-
-    text_to_scan = ""
-    # Option 1: JSON payload
-    if request.is_json:
-        data = request.get_json(silent=True) or {}
-        text_to_scan = data.get("text", "")
-    elif "resume" in request.files:
-        # Option 2: Uploaded file
-        uploaded_file = request.files["resume"]
-        if uploaded_file and uploaded_file.filename != "":
-            try:
-                text_to_scan, _, _, err = _extract_and_validate_resume(request)
-                if err:
-                    return jsonify({"status": "error", "message": err}), 400
-            except Exception as e:
-                return jsonify({"status": "error", "message": f"Failed to extract text: {str(e)}"}), 400
-    else:
-        text_to_scan = request.form.get("text", "")
-
-    if not text_to_scan or not text_to_scan.strip():
-        return jsonify({
-            "status": "error",
-            "message": "No resume text provided for PII scanning."
-        }), 400
-
-    scan_result = pii_service.detect_pii(text_to_scan)
-    return jsonify({
-        "status": "success",
-        "scan": scan_result
-    }), 200
-
-
-def redact_resume_pii_endpoint():
-    """
-    Applies configurable redaction rules to sensitive PII entities within resume text.
-    Allows candidate granular control to redact emails, phone numbers, addresses,
-    government IDs, or custom sensitive terms.
-    """
-    if "user_id" not in flask_session:
-        return jsonify({"status": "error", "message": "Authentication required."}), 401
-
-    data = request.get_json(silent=True) or request.form
-    raw_text = data.get("text", "")
-
-    if not raw_text or not raw_text.strip():
-        return jsonify({
-            "status": "error",
-            "message": "No resume text provided for redaction."
-        }), 400
-
-    redact_emails = data.get("redact_emails", True)
-    if isinstance(redact_emails, str):
-        redact_emails = redact_emails.lower() not in ("false", "0", "no")
-
-    redact_phones = data.get("redact_phones", True)
-    if isinstance(redact_phones, str):
-        redact_phones = redact_phones.lower() not in ("false", "0", "no")
-
-    redact_addresses = data.get("redact_addresses", True)
-    if isinstance(redact_addresses, str):
-        redact_addresses = redact_addresses.lower() not in ("false", "0", "no")
-
-    redact_gov_ids = data.get("redact_gov_ids", True)
-    if isinstance(redact_gov_ids, str):
-        redact_gov_ids = redact_gov_ids.lower() not in ("false", "0", "no")
-
-    custom_tokens = data.get("custom_redact_values", [])
-    if isinstance(custom_tokens, str):
-        custom_tokens = [t.strip() for t in custom_tokens.split(",") if t.strip()]
-
-    redacted_result = pii_service.redact_pii(
-        raw_text,
-        redact_emails=redact_emails,
-        redact_phones=redact_phones,
-        redact_addresses=redact_addresses,
-        redact_gov_ids=redact_gov_ids,
-        custom_redact_values=custom_tokens
-    )
-
-    return jsonify({
-        "status": "success",
-        "redaction": redacted_result
-    }), 200
-
-
-# JOB APPLICATION DEADLINE REMINDERS ENDPOINTS (#251)
-# ============================================================================
-
-
-
-# ============================================================================
-# RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
-# ============================================================================
-
-
-
-
-
-# ============================================================================
-# CODING BOOKMARK FOLDER MANAGEMENT SYSTEM ENDPOINTS (#253)
-# ============================================================================
-
-
-
-
-
-# ============================================================================
-# RESUME PII DETECTION AND REDACTION ENDPOINTS (#249)
-# ============================================================================
-
-
-
 
 
 # ==============================================================================
