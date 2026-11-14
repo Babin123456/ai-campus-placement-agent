@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() if csrf_token is defined else '' }}">
+  <title>Compare With Previous Analysis - AI Campus Placement Agent</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Custom CSS -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom py-2 py-md-3" aria-label="Main navigation">
+    <div class="container d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <a class="navbar-brand navbar-brand-custom fs-5 fs-md-4 text-truncate" href="/">
+        <i class="fa-solid fa-graduation-cap"></i> AI Campus <span class="d-inline">Placement Agent</span>
+      </a>
+      <div class="d-flex align-items-center flex-wrap gap-2 ms-auto ms-lg-0">
+        <button class="btn btn-outline-secondary btn-sm rounded-circle p-2 theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme mode">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+        <a href="/dashboard/{{ analysis_id }}" class="btn btn-outline-primary btn-sm rounded-pill px-3" id="btnBackToDashboard">
+          <i class="fa-solid fa-arrow-left me-1"></i> Back to Dashboard
+        </a>
+        <a href="/history" class="btn btn-outline-info btn-sm rounded-pill px-3">
+          <i class="fa-solid fa-clock-rotate-left me-1"></i> History
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container py-5 fade-in" id="compareContainer" data-trend='{{ trend_chart|tojson|safe }}'>
+    
+    <!-- Hero Banner Card -->
+    <div class="card glass-card p-4 p-md-5 mb-4 border-0">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+          <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill fw-bold text-uppercase small">
+              <i class="fa-solid fa-code-compare me-1"></i> Revision Comparison
+            </span>
+            <span class="badge bg-light text-dark border rounded-pill px-3 py-1 small">
+              <i class="fa-solid fa-briefcase text-secondary me-1"></i> {{ comparison.target_role }}
+            </span>
+            <span class="badge bg-light text-dark border rounded-pill px-3 py-1 small">
+              <i class="fa-solid fa-building text-secondary me-1"></i> {{ comparison.company_name }}
+            </span>
+          </div>
+          <h2 class="fw-bold mb-1">Compare With Previous Analysis</h2>
+          <p class="text-secondary mb-0">
+            Evaluating improvements between your revised resume (Version {{ comparison.current_version }}) and your previous analysis.
+          </p>
+        </div>
+
+        {% if comparison.has_previous %}
+        <div class="text-end">
+          <span class="badge bg-{{ comparison.badge_class }} text-white px-3 py-2 rounded-pill fs-6 shadow-sm" id="scoreDiffBadge">
+            <i class="fa-solid {{ 'fa-arrow-trend-up' if comparison.score_difference > 0 else ('fa-arrow-trend-down' if comparison.score_difference < 0 else 'fa-minus') }} me-1"></i>
+            {{ comparison.badge_text }}
+          </span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not comparison.has_previous %}
+    <!-- First Analysis For Role: Baseline State (No error) -->
+    <div class="card glass-card p-5 text-center border-0 mb-4" id="firstAnalysisNotice">
+      <div class="rounded-circle d-flex align-items-center justify-content-center bg-primary-subtle text-primary mx-auto mb-3" style="width: 72px; height: 72px;">
+        <i class="fa-solid fa-flag-checkered fs-2"></i>
+      </div>
+      <h4 class="fw-bold mb-2">Initial Baseline Analysis Established</h4>
+      <p class="text-secondary mx-auto mb-4" style="max-width: 620px;">
+        This is your first placement analysis for <strong>{{ comparison.target_role }}</strong> ({{ comparison.company_name }}). 
+        There is no previous analysis to compare with yet. When you implement suggestions and upload an updated resume for this target, your ATS score difference, newly added skills, and fixed weaknesses will be compared here side-by-side.
+      </p>
+      <div class="d-flex justify-content-center gap-3">
+        <a href="/dashboard/{{ analysis_id }}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+          <i class="fa-solid fa-gauge-high me-1"></i> View Current Dashboard
+        </a>
+        <a href="/" class="btn btn-outline-secondary rounded-pill px-4">
+          <i class="fa-solid fa-upload me-1"></i> Upload Revision
+        </a>
+      </div>
+    </div>
+
+    {% else %}
+    <!-- Side-by-Side Comparison Section -->
+
+    <!-- 1. ATS Score Before and After Highlight Cards -->
+    <div class="row g-4 mb-4" id="scoreComparisonRow">
+      <!-- Previous Version Score -->
+      <div class="col-md-5">
+        <div class="card bg-light border-0 p-4 rounded-4 text-center h-100 shadow-sm" id="previousScoreCard">
+          <small class="text-secondary fw-semibold text-uppercase d-block mb-1">
+            <i class="fa-solid fa-clock-rotate-left me-1"></i> Version {{ comparison.previous_version }} (Before)
+          </small>
+          <div class="display-5 fw-bold text-dark my-2" id="atsScoreBefore">
+            {{ comparison.ats_before }}<span class="fs-4 text-muted">/100</span>
+          </div>
+          <p class="small text-muted mb-0">Original ATS Compatibility Score</p>
+        </div>
+      </div>
+
+      <!-- Delta Indicator -->
+      <div class="col-md-2 d-flex flex-column align-items-center justify-content-center text-center py-3">
+        <div class="rounded-circle p-3 d-flex align-items-center justify-content-center bg-white shadow-sm border mb-2" style="width: 64px; height: 64px;">
+          <i class="fa-solid {{ 'fa-arrow-right text-success' if comparison.score_difference > 0 else ('fa-arrow-right text-danger' if comparison.score_difference < 0 else 'fa-equals text-muted') }} fs-4"></i>
+        </div>
+        <span class="badge bg-{{ comparison.badge_class }} rounded-pill px-3 py-1 fw-bold" id="scoreDifferenceValue">
+          {{ '+' if comparison.score_difference > 0 else '' }}{{ comparison.score_difference }} pts
+        </span>
+        <small class="text-muted mt-1 text-capitalize fw-semibold">{{ comparison.status }}</small>
+      </div>
+
+      <!-- Current Version Score -->
+      <div class="col-md-5">
+        <div class="card bg-light-subtle border border-success-subtle p-4 rounded-4 text-center h-100 shadow-sm" id="currentScoreCard">
+          <small class="text-success fw-semibold text-uppercase d-block mb-1">
+            <i class="fa-solid fa-star me-1"></i> Version {{ comparison.current_version }} (After)
+          </small>
+          <div class="display-5 fw-bold text-success my-2" id="atsScoreAfter">
+            {{ comparison.ats_after }}<span class="fs-4 text-muted">/100</span>
+          </div>
+          <p class="small text-muted mb-0">Revised ATS Compatibility Score</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Skills Added or Removed Section -->
+    <div class="card glass-card p-4 border-0 mb-4" id="changedSkillsSection">
+      <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+        <i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Changed Skill Lists
+      </h5>
+      <div class="row g-4">
+        <!-- Skills Added -->
+        <div class="col-md-6">
+          <div class="p-3 bg-success-subtle bg-opacity-25 rounded-4 border border-success-subtle h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold text-success small">
+                <i class="fa-solid fa-circle-plus me-1"></i> Skills Added (+{{ comparison.skills_added|length }})
+              </span>
+              <span class="badge bg-success text-white rounded-pill px-2 py-1 small">New in v{{ comparison.current_version }}</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2" id="skillsAddedList">
+              {% for skill in comparison.skills_added %}
+                <span class="badge bg-success text-white border border-success rounded-pill px-3 py-2 fw-medium">
+                  <i class="fa-solid fa-plus me-1 small"></i>{{ skill }}
+                </span>
+              {% else %}
+                <p class="text-muted small mb-0 fst-italic">No newly added skills identified in this version.</p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Skills Removed -->
+        <div class="col-md-6">
+          <div class="p-3 bg-danger-subtle bg-opacity-25 rounded-4 border border-danger-subtle h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold text-danger small">
+                <i class="fa-solid fa-circle-minus me-1"></i> Skills Removed (-{{ comparison.skills_removed|length }})
+              </span>
+              <span class="badge bg-danger text-white rounded-pill px-2 py-1 small">Omitted from v{{ comparison.previous_version }}</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2" id="skillsRemovedList">
+              {% for skill in comparison.skills_removed %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-2 fw-medium">
+                  <i class="fa-solid fa-minus me-1 small"></i>{{ skill }}
+                </span>
+              {% else %}
+                <p class="text-muted small mb-0 fst-italic">No previously matched skills were removed.</p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Retained Skills Row -->
+      {% if comparison.skills_retained %}
+      <div class="mt-3 pt-3 border-top">
+        <span class="small fw-semibold text-secondary d-block mb-2">
+          <i class="fa-solid fa-check-double text-primary me-1"></i> Retained Across Both Revisions ({{ comparison.skills_retained|length }}):
+        </span>
+        <div class="d-flex flex-wrap gap-1" id="skillsRetainedList">
+          {% for skill in comparison.skills_retained %}
+            <span class="badge bg-light text-secondary border rounded-pill px-2 py-1 small">{{ skill }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 3. Weaknesses Fixed and Weaknesses Still Present Section -->
+    <div class="card glass-card p-4 border-0 mb-4" id="weaknessesSection">
+      <h5 class="fw-bold mb-3 d-flex align-items-center gap-2">
+        <i class="fa-solid fa-shield-halved text-primary"></i> Weakness Evolution
+      </h5>
+      <div class="row g-4">
+        <!-- Weaknesses Fixed -->
+        <div class="col-md-6">
+          <div class="p-3 bg-light rounded-4 border h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold text-success small">
+                <i class="fa-solid fa-circle-check text-success me-1"></i> Weaknesses Fixed ({{ comparison.weaknesses_fixed|length }})
+              </span>
+              <span class="badge bg-success text-white rounded-pill px-2 py-1 small">Resolved</span>
+            </div>
+            <div class="mt-2" id="weaknessesFixedList">
+              {% for w in comparison.weaknesses_fixed %}
+                <div class="p-2 mb-2 bg-white rounded-3 border border-success-subtle d-flex align-items-start gap-2">
+                  <i class="fa-solid fa-check text-success mt-1"></i>
+                  <span class="small text-dark">{{ w }}</span>
+                </div>
+              {% else %}
+                <p class="text-muted small mb-0 fst-italic">No previous weaknesses were fully cleared in this revision.</p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Weaknesses Still Present -->
+        <div class="col-md-6">
+          <div class="p-3 bg-light rounded-4 border h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold text-warning-emphasis small">
+                <i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> Weaknesses Still Present ({{ comparison.weaknesses_still_present|length }})
+              </span>
+              <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-1 small">Pending Action</span>
+            </div>
+            <div class="mt-2" id="weaknessesStillPresentList">
+              {% for w in comparison.weaknesses_still_present %}
+                <div class="p-2 mb-2 bg-white rounded-3 border border-warning-subtle d-flex align-items-start gap-2">
+                  <i class="fa-solid fa-circle-exclamation text-warning mt-1"></i>
+                  <span class="small text-dark">{{ w }}</span>
+                </div>
+              {% else %}
+                <p class="text-success small mb-0 fw-semibold">
+                  <i class="fa-solid fa-circle-check me-1"></i> All identified weaknesses from the previous revision have been resolved!
+                </p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Small Trend Chart of ATS Score Across Versions -->
+    <div class="card glass-card p-4 border-0 mb-4" id="trendChartCard">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+          <span class="text-primary fw-semibold text-uppercase small">Longitudinal Trajectory</span>
+          <h5 class="fw-bold mb-0">
+            <i class="fa-solid fa-chart-line text-primary me-2"></i> ATS Score Across Versions
+          </h5>
+        </div>
+        <div class="text-muted small">
+          Tracking {{ comparison.target_role }} ({{ comparison.company_name }})
+        </div>
+      </div>
+
+      <!-- Trend Canvas -->
+      <div class="p-3 bg-light rounded-4 border mb-3" style="position: relative; height: 220px; width: 100%;">
+        <canvas id="atsTrendCanvas" role="img" aria-label="ATS score progression line chart across resume revisions"></canvas>
+      </div>
+
+      <!-- Version Points Pills -->
+      <div class="d-flex flex-wrap gap-2 p-2 bg-light rounded-pill border align-items-center">
+        <span class="small fw-bold text-secondary ms-2 me-1">Iteration Points:</span>
+        {% for pt in comparison.trend_chart %}
+          <span class="badge bg-white text-dark border rounded-pill px-3 py-1">
+            <strong>{{ pt.version }}</strong>: {{ pt.ats_score }}/100 <small class="text-muted">({{ pt.date }})</small>
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Bottom Actions -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-3">
+      <a href="/dashboard/{{ analysis_id }}" class="btn btn-outline-primary rounded-pill px-4">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to Current Dashboard
+      </a>
+      <a href="/dashboard/{{ comparison.previous_analysis_id }}" class="btn btn-outline-secondary rounded-pill px-4" id="btnViewPreviousDashboard">
+        <i class="fa-solid fa-clock-rotate-left me-1"></i> View Previous Analysis (v{{ comparison.previous_version }})
+      </a>
+    </div>
+
+    {% endif %}
+
+  </main>
+
+  <!-- Script for ATS Trend Chart Initialization -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const container = document.getElementById("compareContainer");
+      const canvas = document.getElementById("atsTrendCanvas");
+      if (!canvas || !container) return;
+
+      let trendData = [];
+      try {
+        trendData = JSON.parse(container.getAttribute("data-trend") || "[]");
+      } catch (e) {
+        console.warn("Failed to parse trend chart data:", e);
+      }
+
+      if (window.Chart && trendData.length > 0) {
+        const labels = trendData.map(pt => pt.version || `v${pt.version_number}`);
+        const scores = trendData.map(pt => pt.ats_score);
+
+        new window.Chart(canvas.getContext("2d"), {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [{
+              label: "ATS Score",
+              data: scores,
+              borderColor: "#1a73e8",
+              backgroundColor: "rgba(26, 115, 232, 0.15)",
+              fill: true,
+              tension: 0.3,
+              borderWidth: 3,
+              pointRadius: 6,
+              pointHoverRadius: 8,
+              pointBackgroundColor: "#1a73e8"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                min: 0,
+                max: 100,
+                ticks: { stepSize: 20 },
+                grid: { color: "rgba(0,0,0,0.05)" }
+              },
+              x: {
+                grid: { display: false }
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+      }
+    });
+  </script>
+
+</body>
+</html>

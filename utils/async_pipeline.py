@@ -290,6 +290,22 @@ def _run_analysis_pipeline(
                 results_dict=analysis_payload
             )
 
+        # Cache completed analysis result by input hash (#296)
+        try:
+            from utils.analysis_cache import compute_analysis_hash, set_cached_analysis
+            input_hash = compute_analysis_hash(
+                resume_text=resume_text,
+                job_description=job_description,
+                company_name=company_name
+            )
+            set_cached_analysis(
+                input_hash=input_hash,
+                analysis_id=analysis_id,
+                student_id=student_id or "default_student"
+            )
+        except Exception as cache_err:
+            logger.warning(f"Failed to record async analysis in cache: {cache_err}")
+
         redirect_url = f"/dashboard/{analysis_id}"
 
         # Emit completion milestone with target redirect URL
