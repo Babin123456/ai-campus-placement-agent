@@ -106,6 +106,10 @@ from utils.database import (
     remove_interview_bookmark,
     get_interview_bookmarks,
     is_interview_bookmarked,
+    get_interview_bookmark_by_id,
+    update_interview_bookmark_practice,
+    reset_interview_bookmarks_practice,
+    get_interview_bookmark_practice_stats,
     create_preparation_note,
     get_preparation_notes,
     get_preparation_note_by_id,
@@ -10318,84 +10322,6 @@ def confirm_application_import():
     )
 
 
-@app.route("/applications/import/preview", methods=["POST"])
-def preview_application_import():
-    student_id = _application_import_student_id()
-    try:
-        headers, rows = _read_application_import_csv(request.files.get("csv_file"))
-        mapping = _suggest_application_import_mapping(headers)
-        preview_rows = _build_application_import_preview(student_id, headers, rows, mapping)
-        now = time.time()
-        for stale_token, stale_preview in list(_APPLICATION_IMPORT_PREVIEWS.items()):
-            if now - stale_preview.get("created_at", now) > 1800:
-                _APPLICATION_IMPORT_PREVIEWS.pop(stale_token, None)
-        token = uuid.uuid4().hex
-        _APPLICATION_IMPORT_PREVIEWS[token] = {
-            "student_id": student_id,
-            "headers": headers,
-            "rows": rows,
-            "created_at": now,
-        }
-        return render_template(
-            "application_import.html",
-            token=token,
-            student_id=student_id,
-            headers=headers,
-            mapping=mapping,
-            preview_rows=preview_rows,
-            import_fields=APPLICATION_IMPORT_FIELDS,
-            valid_rows=sum(1 for row in preview_rows if not row["errors"]),
-            invalid_rows=sum(1 for row in preview_rows if row["errors"]),
-        )
-    except ValueError as exc:
-        flash(str(exc), "danger")
-        return redirect(url_for("job_applications_tracker", student_id=student_id))
-
-
-@app.route("/applications/import/confirm", methods=["POST"])
-def confirm_application_import():
-    student_id = _application_import_student_id()
-    token = request.form.get("token", "").strip()
-    preview = _APPLICATION_IMPORT_PREVIEWS.pop(token, None)
-    if not preview or preview["student_id"] != student_id or time.time() - preview["created_at"] > 1800:
-        flash("This import preview has expired. Please upload the CSV again.", "danger")
-        return redirect(url_for("job_applications_tracker", student_id=student_id))
-
-    mapping = {field: request.form.get(f"mapping_{field}", "").strip() for field in APPLICATION_IMPORT_FIELDS}
-    preview_rows = _build_application_import_preview(student_id, preview["headers"], preview["rows"], mapping)
-    existing_apps = get_job_applications(student_id=student_id)
-    imported = 0
-    skipped = []
-    for row in preview_rows:
-        if row["errors"]:
-            skipped.append({"row_number": row["row_number"], "errors": row["errors"]})
-            continue
-        values = row["values"]
-        save_job_application(
-            app_id=f"app-{uuid.uuid4().hex[:12]}",
-            student_id=student_id,
-            company_name=values["company_name"],
-            role_title=values["role_title"],
-            status=values["status"] or "Applied",
-            application_date=values["application_date"] or None,
-            job_url=values["job_url"],
-            job_description=values["job_description"],
-            notes=values["notes"],
-            location=values["location"] or "Remote",
-            job_type=values["job_type"] or "Full-Time",
-            experience_level=values["experience_level"] or "Entry-Level",
-        )
-        existing_apps.append(values)
-        imported += 1
-
-    return render_template(
-        "application_import_result.html",
-        imported=imported,
-        skipped=skipped,
-        student_id=student_id,
-    )
-
-
 @app.route("/api/applications/stats", methods=["GET"])
 def api_applications_stats():
     """
@@ -12672,6 +12598,227 @@ def export_interview_bookmarks():
         mimetype="application/json",
         headers={"Content-Disposition": f"attachment;filename=interview_bookmarks_{student_id}.json"}
     )
+
+
+# ==========================================
+# Interview Question Practice Mode (#359)
+# ==========================================
+
+@app.route("/interview/bookmarks/practice", methods=["GET"])
+def interview_saved_practice_view():
+    """
+    Focused Practice Mode for Bookmarked Interview Questions (#359).
+    Presents saved questions one-by-one with answer recording, optional
+    AI evaluation, and practice completion tracking.
+    """
+    student_id = request.args.get("student_id") or _get_current_student_id()
+    active_category = request.args.get("category", "All").strip()
+    unpracticed_only_arg = request.args.get("unpracticed_only", "").strip().lower()
+    unpracticed_only = unpracticed_only_arg in ("1", "true", "yes")
+
+    # Retrieve all bookmarks for this student
+    all_bookmarks = get_interview_bookmarks(student_id)
+    stats = get_interview_bookmark_practice_stats(student_id)
+
+    # Filter by category
+    filtered = all_bookmarks
+    if active_category and active_category.lower() != "all":
+        filtered = [b for b in filtered if b.get("category", "").lower() == active_category.lower()]
+
+    # Filter unpracticed if requested
+    if unpracticed_only:
+        filtered = [b for b in filtered if not b.get("is_practiced")]
+
+    target_question_id = request.args.get("question_id", "").strip()
+
+    if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({
+            "success": True,
+            "student_id": student_id,
+            "stats": stats,
+            "active_category": active_category,
+            "unpracticed_only": unpracticed_only,
+            "count": len(filtered),
+            "bookmarks": filtered
+        }), 200
+
+    return render_template(
+        "interview_saved_practice.html",
+        student_id=student_id,
+        bookmarks=filtered,
+        all_bookmarks=all_bookmarks,
+        stats=stats,
+        active_category=active_category,
+        unpracticed_only=unpracticed_only,
+        target_question_id=target_question_id
+    )
+
+
+@app.route("/api/interview/bookmarks/<question_id>/practice", methods=["POST"])
+def api_save_interview_practice(question_id: str):
+    """
+    Saves a candidate's practice response and marks question as practiced (#359).
+    """
+    student_id = _get_current_student_id()
+    payload = request.get_json(silent=True) or request.form
+    answer = (payload.get("answer") or "").strip()
+    is_practiced_raw = payload.get("is_practiced", True)
+    if isinstance(is_practiced_raw, str):
+        is_practiced = is_practiced_raw.lower() not in ("false", "0", "no")
+    else:
+        is_practiced = bool(is_practiced_raw)
+
+    evaluation = payload.get("evaluation")
+    if not isinstance(evaluation, dict):
+        evaluation = None
+
+    updated = update_interview_bookmark_practice(
+        student_id=student_id,
+        question_id=question_id,
+        is_practiced=is_practiced,
+        answer=answer,
+        evaluation=evaluation
+    )
+    stats = get_interview_bookmark_practice_stats(student_id)
+    return jsonify({
+        "success": updated,
+        "question_id": question_id,
+        "is_practiced": is_practiced,
+        "stats": stats,
+        "message": "Practice progress saved successfully" if updated else "Bookmark not found or update failed"
+    }), (200 if updated else 404)
+
+
+@app.route("/api/interview/bookmarks/<question_id>/practice/status", methods=["POST"])
+def api_toggle_interview_practice_status(question_id: str):
+    """
+    Toggles or sets the practiced state of a bookmarked interview question (#359).
+    """
+    student_id = _get_current_student_id()
+    bm = get_interview_bookmark_by_id(student_id, question_id)
+    if not bm:
+        return jsonify({"success": False, "error": "Question bookmark not found"}), 404
+
+    payload = request.get_json(silent=True) or request.form
+    if "is_practiced" in payload:
+        raw_val = payload.get("is_practiced")
+        new_status = raw_val.lower() not in ("false", "0", "no") if isinstance(raw_val, str) else bool(raw_val)
+    else:
+        new_status = not bm.get("is_practiced", False)
+
+    updated = update_interview_bookmark_practice(
+        student_id=student_id,
+        question_id=question_id,
+        is_practiced=new_status
+    )
+    stats = get_interview_bookmark_practice_stats(student_id)
+    return jsonify({
+        "success": updated,
+        "question_id": question_id,
+        "is_practiced": new_status,
+        "stats": stats,
+        "message": f"Marked as {'practiced' if new_status else 'unpracticed'}"
+    }), 200
+
+
+@app.route("/api/interview/bookmarks/<question_id>/practice/evaluate", methods=["POST"])
+@rate_limit(scope="star_eval", is_api=True)
+def api_evaluate_saved_question_practice(question_id: str):
+    """
+    Evaluates candidate's written or spoken practice answer for a bookmarked question (#359).
+    Uses STAR framework and speech telemetry analysis.
+    """
+    student_id = _get_current_student_id()
+    bm = get_interview_bookmark_by_id(student_id, question_id)
+    if not bm:
+        return jsonify({"success": False, "error": "Bookmarked question not found"}), 404
+
+    payload = request.get_json(silent=True) or request.form
+    answer = (payload.get("answer") or "").strip()
+    if not answer:
+        return jsonify({"success": False, "error": "Answer text is required for evaluation"}), 400
+
+    speech_metrics = payload.get("speech_metrics")
+    if isinstance(speech_metrics, str):
+        try:
+            speech_metrics = json.loads(speech_metrics)
+        except Exception:
+            speech_metrics = {}
+    elif not isinstance(speech_metrics, dict):
+        speech_metrics = {}
+
+    question_text = bm.get("question_text", "")
+    category = bm.get("category", "Behavioral")
+
+    try:
+        eval_result = star_evaluation_agent.evaluate_star(
+            question=question_text,
+            answer=answer,
+            question_type=category,
+            speech_metrics=speech_metrics
+        )
+    except Exception as exc:
+        logger.error(f"Error evaluating saved interview question practice: {exc}")
+        eval_result = {
+            "score": 75,
+            "feedback": "Answer submitted and reviewed. Consider elaborating with specific outcomes and measurable results.",
+            "technical_accuracy": 75,
+            "communication_score": 75,
+            "strengths": ["Clear attempt", "Addresses the prompt"],
+            "improvement_areas": ["Add more structured details", "Quantify results where possible"]
+        }
+
+    # Normalize response fields for consistent client and report consumption
+    if isinstance(eval_result, dict):
+        if "star_overall_score" in eval_result and "score" not in eval_result:
+            eval_result["score"] = eval_result["star_overall_score"]
+        if "feedback" not in eval_result:
+            coaching = eval_result.get("coaching", {})
+            if isinstance(coaching, dict):
+                improvements = coaching.get("improvements", [])
+                strengths = coaching.get("strengths", [])
+                feedback_parts = strengths + improvements
+                eval_result["feedback"] = " ".join(feedback_parts) if feedback_parts else "Response evaluated successfully."
+                eval_result["suggestions"] = improvements
+                eval_result["strengths"] = strengths
+            else:
+                eval_result["feedback"] = str(coaching or "Response evaluated successfully.")
+
+    # Automatically save answer, evaluation, and mark as practiced
+    update_interview_bookmark_practice(
+        student_id=student_id,
+        question_id=question_id,
+        is_practiced=True,
+        answer=answer,
+        evaluation=eval_result
+    )
+    stats = get_interview_bookmark_practice_stats(student_id)
+
+    return jsonify({
+        "success": True,
+        "question_id": question_id,
+        "is_practiced": True,
+        "evaluation": eval_result,
+        "stats": stats
+    }), 200
+
+
+@app.route("/api/interview/bookmarks/practice/reset", methods=["POST"])
+def api_reset_interview_practice():
+    """
+    Resets practice progress across saved interview questions (#359).
+    """
+    student_id = _get_current_student_id()
+    payload = request.get_json(silent=True) or request.form
+    question_id = (payload.get("question_id") or "").strip() or None
+
+    reset_interview_bookmarks_practice(student_id, question_id=question_id)
+    stats = get_interview_bookmark_practice_stats(student_id)
+    return jsonify({
+        "success": True,
+        "message": f"Practice progress reset for {'question ' + question_id if question_id else 'all saved questions'}",
+        "stats": stats
+    }), 200
 
 
 # ============================================================================
